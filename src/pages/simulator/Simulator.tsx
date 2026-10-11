@@ -1,5 +1,5 @@
 const Simulator = () => {
-  return <div>Simulator</div>;
+  return <>Simulator</>;
 };
 
 export default Simulator;
