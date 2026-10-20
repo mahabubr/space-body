@@ -9,15 +9,18 @@ import { getBrainTexture, getIrisTexture } from "./internal/textures";
 useGLTF.preload("/models/skeleton.glb");
 useGLTF.preload("/models/anatomy.glb");
 
+import type { HealthMetrics } from "../../../health-data";
+
 export type ViewMode = "split" | "muscles" | "skeleton" | "layered";
 
-interface EcorcheModelProps {
+export interface EcorcheModelProps {
   selectedSystem?: SystemId | null;
   hoveredSystem?: SystemId | null;
   viewMode?: ViewMode;
   onSelectSystem?: (id: SystemId | null) => void;
   onHoverSystem?: (id: SystemId | null) => void;
   disableFloat?: boolean;
+  healthValues?: HealthMetrics | null;
 }
 
 /**
@@ -33,6 +36,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   onSelectSystem,
   onHoverSystem,
   disableFloat = false,
+  healthValues = null,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const breathGroupRef = useRef<THREE.Group>(null);
@@ -221,7 +225,8 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     return new THREE.CanvasTexture(canvas);
   }, []);
 
-  // Subtle breathing rhythm & dynamic highlighting when selected or hovered
+  // Subtle breathing rhythm & dynamic highlighting when selected or hovered,
+  // synchronized with live mission physiological health telemetry
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
 
@@ -234,50 +239,91 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const isBrainActive = selectedSystem === "brain" || hoveredSystem === "brain";
     const isEyesActive = selectedSystem === "eyes" || hoveredSystem === "eyes";
 
-    // Bones highlight
+    // Dynamic degradation metrics (100 = nominal)
+    const boneVal = healthValues ? healthValues.bones : 100;
+    const muscleVal = healthValues ? healthValues.muscle : 100;
+    const brainVal = healthValues ? healthValues.brain : 100;
+    const eyeVal = healthValues ? healthValues.eye : 100;
+
+    const boneLoss = Math.max(0, 100 - boneVal);
+    const muscleLoss = Math.max(0, 100 - muscleVal);
+    const brainLoss = Math.max(0, 100 - brainVal);
+    const eyeLoss = Math.max(0, 100 - eyeVal);
+
+    // 1. Bones highlight & decalcification stress aura
     if (isBonesActive) {
       boneMat.emissiveIntensity = 0.55 + Math.sin(time * 4.0) * 0.25;
+    } else if (boneLoss > 0.5) {
+      // Subtle pulse alerting to calcium leaching and bone demineralization
+      boneMat.emissiveIntensity = Math.min(0.35, (boneLoss / 8) * (0.15 + Math.sin(time * 2.5) * 0.1));
     } else {
       boneMat.emissiveIntensity = 0.0;
     }
 
-    // Muscles highlight
+    // 2. Muscles highlight & postural atrophy volume shrinkage
+    const atrophyScale = Math.max(0.97, 1.0 - (muscleLoss / 100) * 0.12);
     if (isMusclesActive) {
       const breath = Math.sin(time * 3.0) * 0.015 + 1.0;
       if (breathGroupRef.current) {
-        breathGroupRef.current.scale.set(breath, breath, breath);
+        const currentScale = breath * atrophyScale;
+        breathGroupRef.current.scale.set(currentScale, currentScale, currentScale);
       }
       muscleMat.emissiveIntensity = 0.55 + Math.sin(time * 4.0) * 0.25;
       tendonMat.emissiveIntensity = 0.35;
     } else {
-      if (breathGroupRef.current) breathGroupRef.current.scale.set(1, 1, 1);
-      muscleMat.emissiveIntensity = 0.0;
-      tendonMat.emissiveIntensity = 0.0;
+      if (breathGroupRef.current) {
+        breathGroupRef.current.scale.set(atrophyScale, atrophyScale, atrophyScale);
+      }
+      if (muscleLoss > 2.0) {
+        // Micro-vascular warning pulse indicating fast-twitch atrophy
+        muscleMat.emissiveIntensity = (muscleLoss / 20) * (0.16 + Math.sin(time * 3.0) * 0.1);
+        tendonMat.emissiveIntensity = (muscleLoss / 20) * 0.08;
+      } else {
+        muscleMat.emissiveIntensity = 0.0;
+        tendonMat.emissiveIntensity = 0.0;
+      }
     }
 
-    // Brain highlight
+    // 3. Brain highlight & cephalic fluid shift / intracranial pressure waves
+    const fluidShiftRate = 3.6 + (brainLoss / 10) * 3.5;
+    const wave = Math.sin(time * fluidShiftRate);
+    const dilation = (brainLoss / 10) * 0.035;
+
     if (isBrainActive) {
-      const wave = Math.sin(time * 4.0);
       brainMat.emissiveIntensity = 0.85 + wave * 0.3;
       if (brainPulseRef.current) {
-        const s = 1.0 + wave * 0.04;
+        const s = 1.0 + wave * 0.04 + Math.sin(time * fluidShiftRate) * dilation;
         brainPulseRef.current.scale.set(s, s, s);
       }
     } else {
-      brainMat.emissiveIntensity = 0.05;
-      if (brainPulseRef.current) brainPulseRef.current.scale.set(1, 1, 1);
+      brainMat.emissiveIntensity = brainLoss > 0.5 ? 0.05 + (brainLoss / 10) * 0.3 : 0.05;
+      if (brainPulseRef.current) {
+        const s = 1.0 + Math.sin(time * fluidShiftRate) * dilation;
+        brainPulseRef.current.scale.set(s, s, s);
+      }
     }
 
-    // Eye highlight
+    // 4. Eye highlight & SANS (Spaceflight-Associated Neuro-ocular Syndrome) reticle
     if (isEyesActive) {
       irisMat.emissiveIntensity = 0.85 + Math.sin(time * 4.0) * 0.3;
       if (eyeReticleRef.current) {
         eyeReticleRef.current.rotation.z = time * 2.5;
         eyeReticleRef.current.visible = true;
+        const s = 1.0 + Math.sin(time * 3.0) * 0.06;
+        eyeReticleRef.current.scale.set(s, s, s);
       }
     } else {
-      irisMat.emissiveIntensity = 0.0;
-      if (eyeReticleRef.current) eyeReticleRef.current.visible = false;
+      irisMat.emissiveIntensity = eyeLoss > 1.0 ? (eyeLoss / 10) * 0.35 : 0.0;
+      if (eyeReticleRef.current) {
+        if (eyeLoss > 1.5) {
+          eyeReticleRef.current.visible = true;
+          eyeReticleRef.current.rotation.z = time * 1.5;
+          const s = 1.0 + Math.sin(time * 2.0) * 0.08;
+          eyeReticleRef.current.scale.set(s, s, s);
+        } else {
+          eyeReticleRef.current.visible = false;
+        }
+      }
     }
   });
 

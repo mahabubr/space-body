@@ -4,6 +4,8 @@ import type { ThreeElements } from "@react-three/fiber";
 import EcorcheModel, { type ViewMode } from "./EcorcheModel";
 import type { SystemId } from "./internal/system-data";
 
+import type { HealthMetrics } from "../../../health-data";
+
 export type HumanBodyProps = ThreeElements["group"] & {
   selectedSystem?: SystemId | null;
   hoveredSystem?: SystemId | null;
@@ -11,6 +13,7 @@ export type HumanBodyProps = ThreeElements["group"] & {
   onSelectSystem?: (id: SystemId | null) => void;
   onHoverSystem?: (id: SystemId | null) => void;
   disableFloat?: boolean;
+  healthValues?: HealthMetrics | null;
 };
 
 // Elegant Medical Loader while 3D Anatomical Assets Stream In
@@ -38,6 +41,7 @@ export const HumanBody: React.FC<HumanBodyProps> = ({
   onSelectSystem,
   onHoverSystem,
   disableFloat = false,
+  healthValues = null,
   ...props
 }) => {
   return (
@@ -50,6 +54,7 @@ export const HumanBody: React.FC<HumanBodyProps> = ({
           onSelectSystem={onSelectSystem}
           onHoverSystem={onHoverSystem}
           disableFloat={disableFloat}
+          healthValues={healthValues}
         />
       </Suspense>
     </group>

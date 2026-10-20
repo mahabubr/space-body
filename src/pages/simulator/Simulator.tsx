@@ -10,6 +10,15 @@ import {
   SYSTEMS_DATA,
   type SystemId,
 } from "../../components/human/internal/system-data";
+import {
+  HEALTH_DATA,
+  getHealthForDay,
+  type MissionData,
+} from "../../../health-data";
+import MissionHeader from "./components/MissionHeader";
+import HealthIndicatorsPanel from "./components/HealthIndicatorsPanel";
+import TimelineSlider from "./components/TimelineSlider";
+import HealthTelemetryChart from "./components/HealthTelemetryChart";
 
 // -------------------------------------------------------------------
 // CAMERA CONTROLLER
@@ -51,17 +60,36 @@ const CameraController: React.FC<CameraControllerProps> = ({
 
 // -------------------------------------------------------------------
 // SIMULATOR COMPONENT
-// 5 Dropdown Options: Full Body, Bones, Muscle, Brain, Eye
-// 4 Top-Right View Modes: Split Anatomy, Muscles, Skeleton, Layered
+// Clean, dynamic 3D Human Health Simulation powered by NASA Mission Datasets
 // -------------------------------------------------------------------
 const Simulator: React.FC = () => {
+  // Mission & Timeline State
+  const [selectedMission, setSelectedMission] = useState<MissionData>(
+    HEALTH_DATA[0]
+  );
+  const [currentDay, setCurrentDay] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [showChart, setShowChart] = useState<boolean>(false);
+  const [showHud, setShowHud] = useState<boolean>(true);
+
+  // 3D Anatomy State
   const [selectedSystem, setSelectedSystem] = useState<SystemId | null>(null);
   const [hoveredSystem, setHoveredSystem] = useState<SystemId | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
-  const [theme, setTheme] = useState<"studio" | "dark">("studio");
+  const [theme, setTheme] = useState<"studio" | "dark">("dark");
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
-  const selectedData = selectedSystem ? SYSTEMS_DATA[selectedSystem] : null;
+  // When selected mission changes, reset day and pause playback
+  const handleSelectMission = (mission: MissionData) => {
+    setSelectedMission(mission);
+    setCurrentDay(0);
+    setIsPlaying(false);
+  };
+
+  // Dynamically calculate live health percentages for current day
+  const currentHealthValues = useMemo(() => {
+    return getHealthForDay(selectedMission, currentDay);
+  }, [selectedMission, currentDay]);
 
   return (
     <div
@@ -73,8 +101,8 @@ const Simulator: React.FC = () => {
     >
       {/* ----------------- TOP NAVBAR & CONTROLS ----------------- */}
       <div className="absolute top-4 left-5 right-5 z-20 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
-        {/* Left: Home & 5-Option System Dropdown */}
-        <div className="flex items-center gap-3 pointer-events-auto">
+        {/* Left: Home, Mission Selector & System Dropdown */}
+        <div className="flex flex-wrap items-center gap-2.5 pointer-events-auto">
           <Link
             to="/"
             className={`px-3 py-2 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
@@ -99,6 +127,14 @@ const Simulator: React.FC = () => {
             Home
           </Link>
 
+          {/* Mission Selection Component */}
+          <MissionHeader
+            missions={HEALTH_DATA}
+            selectedMission={selectedMission}
+            onSelectMission={handleSelectMission}
+            theme={theme}
+          />
+
           {/* 5-Option Dropdown: Full Body, Bones, Muscle, Brain, Eye */}
           <select
             value={selectedSystem || ""}
@@ -107,7 +143,7 @@ const Simulator: React.FC = () => {
                 e.target.value ? (e.target.value as SystemId) : null
               )
             }
-            className={`rounded-xl px-4 py-2 text-xs font-semibold tracking-wide backdrop-blur-md border outline-none cursor-pointer pr-8 shadow-sm transition-all ${
+            className={`rounded-xl px-3.5 py-2 text-xs font-semibold tracking-wide backdrop-blur-md border outline-none cursor-pointer pr-8 shadow-sm transition-all ${
               theme === "studio"
                 ? "bg-white/95 text-slate-800 border-slate-300 hover:border-sky-500 focus:border-sky-600 focus:ring-1 focus:ring-sky-500"
                 : "bg-slate-950/85 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 focus:ring-1 focus:ring-cyan-400"
@@ -136,8 +172,36 @@ const Simulator: React.FC = () => {
           )}
         </div>
 
-        {/* Top-Right: Exactly 4 View Mode Options + Theme Toggle */}
+        {/* Top-Right: View Mode Options, Telemetry Toggle & Theme Toggle */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Toggle HUD Panel */}
+          <button
+            onClick={() => setShowHud(!showHud)}
+            className={`px-3 py-2 rounded-xl text-xs font-medium backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
+              showHud
+                ? "bg-sky-600 text-white border-sky-600"
+                : theme === "studio"
+                ? "bg-white/90 text-slate-700 border-slate-300 hover:bg-slate-100"
+                : "bg-slate-900/80 text-slate-200 border-slate-700 hover:bg-slate-800"
+            }`}
+            title="Toggle health indicators"
+          >
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            <span className="hidden sm:inline">Telemetry</span>
+          </button>
+
           {/* 4 View Mode Buttons */}
           <div
             className={`flex items-center rounded-xl p-0.5 border shadow-sm backdrop-blur-md ${
@@ -157,7 +221,7 @@ const Simulator: React.FC = () => {
               <button
                 key={mode.id}
                 onClick={() => setViewMode(mode.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   viewMode === mode.id
                     ? "bg-sky-600 text-white font-semibold shadow-sm"
                     : "hover:bg-slate-200/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
@@ -180,75 +244,66 @@ const Simulator: React.FC = () => {
             {theme === "studio" ? (
               <>
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shadow-sm" />
-                Studio
+                <span className="hidden sm:inline">Studio</span>
               </>
             ) : (
               <>
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block shadow-[0_0_8px_#22d3ee]" />
-                Dark
+                <span className="hidden sm:inline">Dark</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* ----------------- MISSION MEDICINE TELEMETRY CARD ----------------- */}
-      {selectedData && (
-        <div
-          className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-30 max-w-lg w-[90%] md:w-full p-4 rounded-2xl backdrop-blur-xl border shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-4 ${
-            theme === "studio"
-              ? "bg-white/95 border-slate-200/80 text-slate-800 shadow-slate-400/30"
-              : "bg-slate-950/90 border-cyan-500/40 text-slate-100 shadow-cyan-950/80"
-          }`}
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold tracking-tight text-sky-600 dark:text-cyan-400">
-                  {selectedData.name}
-                </h3>
-                <span
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold ${
-                    selectedData.missionRisk === "CRITICAL"
-                      ? "bg-red-500/15 text-red-600 border border-red-500/30"
-                      : "bg-amber-500/15 text-amber-600 border border-amber-500/30"
-                  }`}
-                >
-                  {selectedData.badge}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {selectedData.shortDescription}
-              </p>
-            </div>
-            <button
-              onClick={() => setSelectedSystem(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="text-xs space-y-1.5 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <div>
-              <span className="font-semibold text-rose-600 dark:text-rose-400 mr-1">
-                Space Impact:
-              </span>
-              <span className="text-slate-600 dark:text-slate-300">
-                {selectedData.problemInSpace}
-              </span>
-            </div>
-            <div>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400 mr-1">
-                Countermeasure:
-              </span>
-              <span className="text-slate-600 dark:text-slate-300">
-                {selectedData.nasaSolution}
-              </span>
-            </div>
-          </div>
+      {/* ----------------- LEFT FLOATING HUD: HEALTH SYSTEMS INDICATORS ----------------- */}
+      {showHud && (
+        <div className="absolute top-20 left-5 z-20 pointer-events-auto animate-in fade-in slide-in-from-left-4 duration-300">
+          <HealthIndicatorsPanel
+            healthValues={currentHealthValues}
+            selectedSystem={selectedSystem}
+            onSelectSystem={setSelectedSystem}
+            hoveredSystem={hoveredSystem}
+            onHoverSystem={setHoveredSystem}
+            theme={theme}
+          />
         </div>
       )}
+
+      {/* ----------------- BOTTOM CONTROLS: TIMELINE SLIDER & DEGRADATION CHART ----------------- */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5 w-[92%] max-w-xl pointer-events-auto">
+        {/* Degradation Line Chart (Expandable) */}
+        {showChart && (
+          <div
+            className={`w-full p-3 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-300 ${
+              theme === "studio"
+                ? "bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/60"
+                : "bg-slate-950/90 border-slate-800 text-slate-100 shadow-cyan-950/40"
+            }`}
+          >
+            <HealthTelemetryChart
+              mission={selectedMission}
+              currentDay={currentDay}
+              onSelectDay={setCurrentDay}
+              selectedSystem={selectedSystem}
+              onSelectSystem={setSelectedSystem}
+              theme={theme}
+            />
+          </div>
+        )}
+
+        {/* Timeline Slider & Navigation */}
+        <TimelineSlider
+          mission={selectedMission}
+          currentDay={currentDay}
+          onSelectDay={setCurrentDay}
+          isPlaying={isPlaying}
+          onTogglePlay={() => setIsPlaying(!isPlaying)}
+          showChart={showChart}
+          onToggleChart={() => setShowChart(!showChart)}
+          theme={theme}
+        />
+      </div>
 
       {/* ----------------- THREE.JS 3D CANVAS VIEWPORT ----------------- */}
       <Canvas
@@ -338,6 +393,7 @@ const Simulator: React.FC = () => {
           viewMode={viewMode}
           onSelectSystem={setSelectedSystem}
           onHoverSystem={setHoveredSystem}
+          healthValues={currentHealthValues}
         />
 
         {/* Orbit Controls (Full 360 Rotation, Zoom, Pan) */}
