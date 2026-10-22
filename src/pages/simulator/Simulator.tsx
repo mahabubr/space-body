@@ -19,6 +19,7 @@ import MissionHeader from "./components/MissionHeader";
 import HealthIndicatorsPanel from "./components/HealthIndicatorsPanel";
 import TimelineSlider from "./components/TimelineSlider";
 import HealthTelemetryChart from "./components/HealthTelemetryChart";
+import SystemTelemetryIndicator from "./components/SystemTelemetryIndicator";
 
 // -------------------------------------------------------------------
 // CAMERA CONTROLLER
@@ -90,6 +91,26 @@ const Simulator: React.FC = () => {
   const currentHealthValues = useMemo(() => {
     return getHealthForDay(selectedMission, currentDay);
   }, [selectedMission, currentDay]);
+
+  // Active anatomical system from selection or hover (system-data.ts)
+  const activeSystem = selectedSystem || hoveredSystem;
+  const systemInfo = activeSystem ? SYSTEMS_DATA[activeSystem] : null;
+
+  const activeOrganHealth = useMemo(() => {
+    if (!activeSystem) return null;
+    switch (activeSystem) {
+      case "eyes":
+        return currentHealthValues.eye;
+      case "muscles":
+        return currentHealthValues.muscle;
+      case "bones":
+        return currentHealthValues.bones;
+      case "brain":
+        return currentHealthValues.brain;
+      default:
+        return null;
+    }
+  }, [activeSystem, currentHealthValues]);
 
   return (
     <div
@@ -265,6 +286,23 @@ const Simulator: React.FC = () => {
             onSelectSystem={setSelectedSystem}
             hoveredSystem={hoveredSystem}
             onHoverSystem={setHoveredSystem}
+            theme={theme}
+          />
+        </div>
+      )}
+
+      {/* ----------------- RIGHT FLOATING HUD: SYSTEM TELEMETRY INDICATOR (system-data.ts) ----------------- */}
+      {showHud && (
+        <div className="absolute top-20 right-5 z-20 pointer-events-auto animate-in fade-in slide-in-from-right-4 duration-300">
+          <SystemTelemetryIndicator
+            systemInfo={systemInfo}
+            healthValue={activeOrganHealth}
+            currentDay={currentDay}
+            onClose={() => {
+              setSelectedSystem(null);
+              setHoveredSystem(null);
+            }}
+            onSelectSystem={setSelectedSystem}
             theme={theme}
           />
         </div>
