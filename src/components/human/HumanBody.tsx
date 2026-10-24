@@ -3,7 +3,6 @@ import { Html } from "@react-three/drei";
 import type { ThreeElements } from "@react-three/fiber";
 import EcorcheModel, { type ViewMode } from "./EcorcheModel";
 import type { SystemId } from "./internal/system-data";
-
 import type { HealthMetrics } from "../../../health-data";
 
 export type HumanBodyProps = ThreeElements["group"] & {
@@ -16,7 +15,6 @@ export type HumanBodyProps = ThreeElements["group"] & {
   healthValues?: HealthMetrics | null;
 };
 
-// Elegant Medical Loader while 3D Anatomical Assets Stream In
 const ModelLoader: React.FC = () => (
   <Html center>
     <div className="flex flex-col items-center justify-center p-6 bg-slate-900/90 backdrop-blur-xl border border-sky-500/30 rounded-2xl shadow-2xl text-white select-none min-w-[240px]">

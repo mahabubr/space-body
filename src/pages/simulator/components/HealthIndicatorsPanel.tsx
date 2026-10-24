@@ -139,7 +139,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
 
         return (
           <group key={sys.id} position={sys.anchor}>
-            {/* 3D Anchor Glow Marker on anatomical organ */}
             <mesh>
               <sphereGeometry args={[0.007, 16, 16]} />
               <meshBasicMaterial
@@ -160,7 +159,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
               </mesh>
             )}
 
-            {/* 2D Connected Callout HUD with integrated SystemTelemetryIndicator */}
             <Html center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
               <div
                 className={`relative pointer-events-none select-none transition-opacity duration-300 ${
@@ -171,7 +169,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                 onMouseEnter={() => onHoverSystem(sys.id)}
                 onMouseLeave={() => onHoverSystem(null)}
               >
-                {/* Glowing Anchor Beacon on the body */}
                 <div
                   className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-all ${
                     isActive ? "w-3 h-3 ring-2" : "w-2 h-2 opacity-80"
@@ -188,7 +185,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                   />
                 )}
 
-                {/* Angled SVG Leader Line */}
                 <svg
                   className="absolute overflow-visible pointer-events-none"
                   style={{ left: 0, top: 0, width: 1, height: 1 }}
@@ -220,7 +216,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                   />
                 </svg>
 
-                {/* Floating Telemetry Card connecting directly to SystemTelemetryIndicator */}
                 <div
                   style={{
                     position: "absolute",

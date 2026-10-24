@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import type { MissionData } from "../../../../health-data";
 import type { SystemId } from "../../../components/human/internal/system-data";
 
@@ -10,6 +10,8 @@ interface HealthTelemetryChartProps {
   onSelectSystem: (system: SystemId | null) => void;
   theme: "studio" | "dark";
 }
+
+const SYSTEMS = ["eye", "muscle", "bones", "brain"] as const;
 
 const SYSTEM_CONFIG: Record<
   string,
@@ -41,6 +43,13 @@ const SYSTEM_CONFIG: Record<
   },
 };
 
+const width = 520;
+const height = 140;
+const padding = { top: 15, right: 25, bottom: 25, left: 35 };
+const chartW = width - padding.left - padding.right;
+const chartH = height - padding.top - padding.bottom;
+const minDay = 0;
+
 export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
   mission,
   currentDay,
@@ -49,18 +58,8 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
   onSelectSystem,
   theme,
 }) => {
-  // SVG Dimensions
-  const width = 520;
-  const height = 140;
-  const padding = { top: 15, right: 25, bottom: 25, left: 35 };
-
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const minDay = 0;
   const maxDay = Math.max(1, mission.durationDays);
 
-  // Health Y bounds: usually between 84% and 100%
   const { minVal, maxVal } = useMemo(() => {
     let min = 100;
     let max = 100;
@@ -76,17 +75,19 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
     };
   }, [mission]);
 
-  // Coordinate projection helpers
-  const getX = (day: number) =>
-    padding.left + ((day - minDay) / (maxDay - minDay)) * chartW;
-  const getY = (val: number) =>
-    padding.top + chartH - ((val - minVal) / (maxVal - minVal)) * chartH;
+  const getX = useCallback(
+    (day: number) => padding.left + ((day - minDay) / (maxDay - minDay)) * chartW,
+    [maxDay]
+  );
 
-  const systems = ["eye", "muscle", "bones", "brain"] as const;
+  const getY = useCallback(
+    (val: number) =>
+      padding.top + chartH - ((val - minVal) / (maxVal - minVal)) * chartH,
+    [minVal, maxVal]
+  );
 
-  // Generate SVG path for a system
   const paths = useMemo(() => {
-    return systems.map((sys) => {
+    return SYSTEMS.map((sys) => {
       const points = mission.intervals.map((int) => ({
         x: getX(int.day),
         y: getY(int.health[sys]),
@@ -106,10 +107,9 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
         config: SYSTEM_CONFIG[sys],
       };
     });
-  }, [mission, minVal, maxVal, chartW, chartH]);
+  }, [mission, getX, getY]);
 
   const currentX = getX(currentDay);
-
   const isDark = theme === "dark";
 
   return (
@@ -140,7 +140,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             onSelectDay(targetDay);
           }}
         >
-          {/* Y Axis Grid lines */}
           {[100, 95, 90, 85].map((yTick) => {
             if (yTick < minVal || yTick > maxVal) return null;
             const y = getY(yTick);
@@ -169,7 +168,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             );
           })}
 
-          {/* X Axis Interval Tick Marks */}
           {mission.intervals.map((int) => {
             const x = getX(int.day);
             return (
@@ -196,7 +194,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             );
           })}
 
-          {/* System Degradation Curves */}
           {paths.map(({ sys, d, points, config }) => {
             const isSystemSelected =
               selectedSystem === config.systemId || selectedSystem === null;
@@ -218,7 +215,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Data Points */}
                 {points.map((pt) => (
                   <circle
                     key={pt.day}
@@ -240,7 +236,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             );
           })}
 
-          {/* Dynamic Scrub Cursor Line for Current Day */}
           <line
             x1={currentX}
             y1={padding.top - 4}
@@ -259,10 +254,9 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
           />
         </svg>
 
-        {/* Legend / Filter Chips */}
         <div className="flex flex-wrap items-center justify-between gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
           <div className="flex flex-wrap items-center gap-2">
-            {systems.map((sys) => {
+            {SYSTEMS.map((sys) => {
               const cfg = SYSTEM_CONFIG[sys];
               const isSelected = selectedSystem === cfg.systemId;
               const color = isDark ? cfg.darkColor : cfg.color;

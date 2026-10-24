@@ -18,10 +18,6 @@ import HealthIndicatorsPanel from "./components/HealthIndicatorsPanel";
 import TimelineSlider from "./components/TimelineSlider";
 import HealthTelemetryChart from "./components/HealthTelemetryChart";
 
-// -------------------------------------------------------------------
-// CAMERA CONTROLLER
-// Smoothly glides the camera and OrbitControls target to focus on the selected system
-// -------------------------------------------------------------------
 interface CameraControllerProps {
   selectedSystem: SystemId | null;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -46,7 +42,6 @@ const CameraController: React.FC<CameraControllerProps> = ({
       targetLook = new THREE.Vector3(...info.cameraTarget);
     }
 
-    // Smooth exponential decay interpolation
     const factor = 1 - Math.exp(-delta * 4.2);
     state.camera.position.lerp(targetPos, factor);
     controlsRef.current.target.lerp(targetLook, factor);
@@ -56,12 +51,7 @@ const CameraController: React.FC<CameraControllerProps> = ({
   return null;
 };
 
-// -------------------------------------------------------------------
-// SIMULATOR COMPONENT
-// Clean, dynamic 3D Human Health Simulation powered by NASA Mission Datasets
-// -------------------------------------------------------------------
 const Simulator: React.FC = () => {
-  // Mission & Timeline State
   const [selectedMission, setSelectedMission] = useState<MissionData>(
     HEALTH_DATA[0]
   );
@@ -69,21 +59,18 @@ const Simulator: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [showChart, setShowChart] = useState<boolean>(false);
 
-  // 3D Anatomy State
   const [selectedSystem, setSelectedSystem] = useState<SystemId | null>(null);
   const [hoveredSystem, setHoveredSystem] = useState<SystemId | null>(null);
   const viewMode: ViewMode = "split";
   const [theme, setTheme] = useState<"studio" | "dark">("dark");
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
-  // When selected mission changes, reset day and pause playback
   const handleSelectMission = (mission: MissionData) => {
     setSelectedMission(mission);
     setCurrentDay(0);
     setIsPlaying(false);
   };
 
-  // Health metrics strictly determined by specified mission interval
   const currentHealthValues = useMemo(() => {
     const intervals = selectedMission.intervals;
     if (!intervals || intervals.length === 0) {
@@ -92,7 +79,6 @@ const Simulator: React.FC = () => {
     const match = intervals.find((int) => int.day === currentDay);
     if (match) return match.health;
 
-    // Use closest prior interval
     let active = intervals[0];
     for (const int of intervals) {
       if (int.day <= currentDay) {
@@ -110,9 +96,7 @@ const Simulator: React.FC = () => {
           : "bg-[#030712] text-white"
       }`}
     >
-      {/* ----------------- TOP NAVBAR & CONTROLS ----------------- */}
       <div className="absolute top-4 left-5 right-5 z-20 flex flex-wrap items-start justify-between gap-3 pointer-events-none">
-        {/* Left: Home, Mission Selector & Anatomy System List */}
         <div className="flex flex-col items-start gap-2.5 pointer-events-auto w-52 max-w-[90vw]">
           <Link
             to="/"
@@ -138,7 +122,6 @@ const Simulator: React.FC = () => {
             Home
           </Link>
 
-          {/* Left Vertical Selection Panel: All selecting options in lists */}
           <div
             className={`w-full rounded-2xl backdrop-blur-xl border p-2.5 shadow-xl transition-all ${
               theme === "studio"
@@ -146,7 +129,6 @@ const Simulator: React.FC = () => {
                 : "bg-slate-950/85 border-slate-800 text-slate-100 shadow-cyan-950/30"
             }`}
           >
-            {/* Mission Dataset Section */}
             <div className="pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-800/80">
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block mb-1.5 px-1">
                 Mission Dataset
@@ -184,7 +166,6 @@ const Simulator: React.FC = () => {
               </ul>
             </div>
 
-            {/* Anatomy Focus System Selection List */}
             <div>
               <div className="flex items-center justify-between px-1 mb-1.5">
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
@@ -262,9 +243,7 @@ const Simulator: React.FC = () => {
           </div>
         </div>
 
-        {/* Top-Right: View Mode Options, Telemetry Toggle & Theme Toggle */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* View: Split Anatomy */}
           <div
             className={`px-3 py-2 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
               theme === "studio"
@@ -276,7 +255,6 @@ const Simulator: React.FC = () => {
             <span>Split Anatomy</span>
           </div>
 
-          {/* Theme Toggle */}
           <button
             onClick={() => setTheme(theme === "studio" ? "dark" : "studio")}
             className={`px-3 py-2 rounded-xl text-xs font-medium backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
@@ -300,11 +278,7 @@ const Simulator: React.FC = () => {
         </div>
       </div>
 
-
-
-      {/* ----------------- BOTTOM CONTROLS: TIMELINE SLIDER & DEGRADATION CHART ----------------- */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5 w-[92%] max-w-xl pointer-events-auto">
-        {/* Degradation Line Chart (Expandable) */}
         {showChart && (
           <div
             className={`w-full p-3 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-300 ${
@@ -324,7 +298,6 @@ const Simulator: React.FC = () => {
           </div>
         )}
 
-        {/* Timeline Slider & Navigation */}
         <TimelineSlider
           mission={selectedMission}
           currentDay={currentDay}
@@ -337,7 +310,6 @@ const Simulator: React.FC = () => {
         />
       </div>
 
-      {/* ----------------- THREE.JS 3D CANVAS VIEWPORT ----------------- */}
       <Canvas
         camera={{
           position: [0, 0.05, 2.65],
@@ -348,19 +320,17 @@ const Simulator: React.FC = () => {
         gl={{
           antialias: true,
           alpha: true,
-          localClippingEnabled: true, // Enables hardware clipping for Split Anatomy
+          localClippingEnabled: true,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: theme === "studio" ? 1.05 : 1.25,
         }}
         onPointerMissed={() => setSelectedSystem(null)}
       >
-        {/* Background color based on mode */}
         <color
           attach="background"
           args={[theme === "studio" ? "#f8fafc" : "#030712"]}
         />
 
-        {/* ----------------- STUDIO LIGHTING SETUP ----------------- */}
         {theme === "studio" ? (
           <>
             <ambientLight intensity={0.85} color="#ffffff" />
@@ -411,13 +381,11 @@ const Simulator: React.FC = () => {
           </>
         )}
 
-        {/* Smooth Camera Focus Controller */}
         <CameraController
           selectedSystem={selectedSystem}
           controlsRef={controlsRef}
         />
 
-        {/* ----------------- PHOTOREALISTIC 3D ÉCORCHÉ HUMAN MODEL ----------------- */}
         <HumanBody
           position={[0, 0, 0]}
           selectedSystem={selectedSystem}
@@ -428,7 +396,6 @@ const Simulator: React.FC = () => {
           healthValues={currentHealthValues}
         />
 
-        {/* ----------------- 3D FLOATING HEALTH INDICATORS CONNECTED TO BODY (ALWAYS ON) ----------------- */}
         <HealthIndicatorsPanel
           healthValues={currentHealthValues}
           selectedMission={selectedMission}
@@ -440,7 +407,6 @@ const Simulator: React.FC = () => {
           theme={theme}
         />
 
-        {/* Orbit Controls (Full 360 Rotation, Zoom, Pan) */}
         <OrbitControls
           ref={controlsRef}
           enableDamping={true}

@@ -28,7 +28,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   const maxDay = Math.max(1, mission.durationDays);
   const intervals = mission.intervals;
 
-  // Derive timePoint phase directly from mission.timePoints
   const currentTimePoint =
     currentDay === 0
       ? mission.timePoints[0] || "pre-flight"
@@ -36,7 +35,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
       ? mission.timePoints[2] || "post-flight"
       : mission.timePoints[1] || "in-flight";
 
-  // Auto-playback simulation loop stepping strictly through specified intervals
   useEffect(() => {
     if (isPlaying && intervals && intervals.length > 0) {
       timerRef.current = window.setInterval(() => {
@@ -67,7 +65,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           : "bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/40"
       }`}
     >
-      {/* Top Header: Current Day & TimePoint */}
       <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/60 dark:border-slate-800/80">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono font-semibold text-sky-600 dark:text-cyan-400">
@@ -78,7 +75,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           </span>
         </div>
 
-        {/* Chart View Toggle */}
         <button
           onClick={onToggleChart}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
@@ -106,7 +102,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
         </button>
       </div>
 
-      {/* Play/Pause Button & Slider Track */}
       <div className="flex items-center gap-3">
         <button
           onClick={onTogglePlay}
@@ -128,7 +123,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           )}
         </button>
 
-        {/* Interval-Snapped Slider Track */}
         <input
           type="range"
           min={0}
@@ -150,7 +144,6 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
         />
       </div>
 
-      {/* Discrete Mission Interval Buttons (From health-data.ts) */}
       <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
         <span className="text-[10px] font-mono text-slate-400 mr-1">
           Intervals:

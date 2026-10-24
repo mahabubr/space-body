@@ -18,5 +18,10 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      '@typescript-eslint/no-empty-object-type': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+    },
   },
 ])

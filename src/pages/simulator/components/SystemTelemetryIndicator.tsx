@@ -29,7 +29,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
   const val = healthValue ?? 100;
   const accentColor = isDark ? systemInfo.glowColor : systemInfo.color;
 
-  // COMPACT TELEMETRY PREVIEW (when not selected)
   if (!isSelected) {
     return (
       <div
@@ -47,7 +46,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
             : "bg-white/90 border-slate-200/90 hover:border-slate-300 hover:bg-white"
         }`}
       >
-        {/* Header: Name & Risk Badge */}
         <div className="flex items-center justify-between gap-1 mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span
@@ -69,14 +67,12 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
           </span>
         </div>
 
-        {/* Short description snippet */}
         {description?.shortDescription && (
           <p className="text-[10px] text-slate-400 line-clamp-1 mb-1.5 leading-snug">
             {description.shortDescription}
           </p>
         )}
 
-        {/* Live Telemetry Health Row */}
         <div className="flex items-baseline justify-between text-xs font-mono mb-1">
           <span className="text-[10px] text-slate-400 font-sans">Health:</span>
           <div className="flex items-baseline gap-1">
@@ -97,7 +93,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
           </div>
         </div>
 
-        {/* Mini progress bar */}
         <div className="w-full bg-slate-200/70 dark:bg-slate-800/80 h-1 rounded-full overflow-hidden mb-1.5">
           <div
             className="h-full rounded-full transition-all duration-300"
@@ -108,7 +103,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
           />
         </div>
 
-        {/* Action hint */}
         <div className="flex items-center justify-between text-[9px] font-mono text-sky-600 dark:text-cyan-400 font-medium pt-0.5">
           <span>Inspect Telemetry</span>
           <span>→</span>
@@ -117,7 +111,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
     );
   }
 
-  // FULL EXPANDED NASA TELEMETRY (when selected)
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -127,7 +120,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
           : "bg-white/95 border-sky-500 ring-2 ring-sky-400/40 text-slate-800 shadow-sky-200/60"
       }`}
     >
-      {/* Header */}
       <div className="flex items-start justify-between gap-2 pb-2 mb-2 border-b border-slate-200/70 dark:border-slate-800/80">
         <div>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -166,7 +158,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
         )}
       </div>
 
-      {/* Live Mission Day Health Telemetry */}
       {healthValue !== undefined && healthValue !== null && (
         <div className="mb-2 p-2 rounded-xl bg-black/5 dark:bg-black/30 border border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between">
           <div>
@@ -200,7 +191,6 @@ export const SystemTelemetryIndicator: React.FC<SystemTelemetryIndicatorProps> =
         </div>
       )}
 
-      {/* NASA Medical Insights: Space Impact, Astronaut Effects, Countermeasures */}
       {description && (
         <div className="text-xs space-y-1.5 max-h-48 overflow-y-auto pr-1">
           {description.problemInSpace && (

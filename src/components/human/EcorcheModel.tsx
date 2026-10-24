@@ -4,12 +4,10 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import type { SystemId } from "./internal/system-data";
 import { getBrainTexture, getIrisTexture } from "./internal/textures";
+import type { HealthMetrics } from "../../../health-data";
 
-// Preload the GLBs so they load immediately
 useGLTF.preload("/models/skeleton.glb");
 useGLTF.preload("/models/anatomy.glb");
-
-import type { HealthMetrics } from "../../../health-data";
 
 export type ViewMode = "split" | "muscles" | "skeleton" | "layered";
 
@@ -23,12 +21,6 @@ export interface EcorcheModelProps {
   healthValues?: HealthMetrics | null;
 }
 
-/**
- * Photorealistic 3D Écorché Anatomical Human Model
- * Built from MRI-based BodyParts3D & Z-Anatomy datasets (201 bones + 467 muscles)
- * Features 4 View Modes (Split Anatomy, Muscles, Skeleton, Layered)
- * with precise anatomical alignment for Brain and Eyes inside the cranial & orbital cavities.
- */
 export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   selectedSystem = null,
   hoveredSystem = null,
@@ -43,13 +35,9 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   const brainPulseRef = useRef<THREE.Group>(null);
   const eyeReticleRef = useRef<THREE.Mesh>(null);
 
-  // Load the 201-bone skeleton and 467-muscle anatomy models
   const skeletonGLTF = useGLTF("/models/skeleton.glb");
   const anatomyGLTF = useGLTF("/models/anatomy.glb");
 
-  // Midline Hardware Clipping Planes
-  // Viewer's Left (Figure's Right): x <= 0 (Skeletal side)
-  // Viewer's Right (Figure's Left): x >= 0 (Muscular side)
   const leftClipPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(1, 0, 0), 0.003),
     []
@@ -59,57 +47,50 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     []
   );
 
-  // ───────────── Shared Materials ─────────────
-
-  // 1. Authentic Warm Ivory Bone Material
-  const boneMat = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#f6f1e6"),
-      roughness: 0.42,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-      clippingPlanes: viewMode === "split" ? [leftClipPlane] : [],
-      clipShadows: true,
-      emissive: new THREE.Color("#0284c7"),
-      emissiveIntensity: 0.0,
-    });
-  }, [viewMode, leftClipPlane]);
-
-  // 2. Authentic Écorché Crimson Muscle Material
-  const muscleMat = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#a81d1d"),
-      roughness: 0.42,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-      clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
-      clipShadows: true,
-      emissive: new THREE.Color("#ea580c"),
-      emissiveIntensity: 0.0,
-    });
-  }, [viewMode, rightClipPlane]);
-
-  // 3. Pearlescent White Tendon / Connective Tissue Material
-  const tendonMat = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#f8fafc"),
-      roughness: 0.28,
-      metalness: 0.03,
-      side: THREE.DoubleSide,
-      clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
-      clipShadows: true,
-      emissive: new THREE.Color("#ea580c"),
-      emissiveIntensity: 0.0,
-    });
-  }, [viewMode, rightClipPlane]);
-
-  // 4. Brain & Eye Materials
   const brainTexture = useMemo(() => getBrainTexture(), []);
   const irisTexture = useMemo(() => getIrisTexture(), []);
 
-  const brainMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
+  const materials = useRef<{
+    boneMat: THREE.MeshStandardMaterial;
+    muscleMat: THREE.MeshStandardMaterial;
+    tendonMat: THREE.MeshStandardMaterial;
+    brainMat: THREE.MeshStandardMaterial;
+    irisMat: THREE.MeshStandardMaterial;
+  } | null>(null);
+
+  if (!materials.current) {
+    materials.current = {
+      boneMat: new THREE.MeshStandardMaterial({
+        color: new THREE.Color("#f6f1e6"),
+        roughness: 0.42,
+        metalness: 0.02,
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [leftClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#0284c7"),
+        emissiveIntensity: 0.0,
+      }),
+      muscleMat: new THREE.MeshStandardMaterial({
+        color: new THREE.Color("#a81d1d"),
+        roughness: 0.42,
+        metalness: 0.02,
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#ea580c"),
+        emissiveIntensity: 0.0,
+      }),
+      tendonMat: new THREE.MeshStandardMaterial({
+        color: new THREE.Color("#f8fafc"),
+        roughness: 0.28,
+        metalness: 0.03,
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#ea580c"),
+        emissiveIntensity: 0.0,
+      }),
+      brainMat: new THREE.MeshStandardMaterial({
         map: brainTexture,
         color: new THREE.Color("#f472b6"),
         roughness: 0.35,
@@ -117,22 +98,18 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         emissive: new THREE.Color("#ec4899"),
         emissiveIntensity: 0.0,
       }),
-    [brainTexture]
-  );
-
-  const irisMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
+      irisMat: new THREE.MeshStandardMaterial({
         map: irisTexture,
         roughness: 0.08,
         metalness: 0.05,
         emissive: new THREE.Color("#0284c7"),
         emissiveIntensity: 0.0,
       }),
-    [irisTexture]
-  );
+    };
+  }
 
-  // Update clipping planes & transparency when viewMode changes
+  const { boneMat, muscleMat, tendonMat, brainMat, irisMat } = materials.current;
+
   useEffect(() => {
     if (viewMode === "split") {
       boneMat.clippingPlanes = [leftClipPlane];
@@ -159,7 +136,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
     } else if (viewMode === "layered") {
-      // Layered View: Whole skeleton with semi-transparent muscles over top
       boneMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
@@ -175,12 +151,11 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     tendonMat.needsUpdate = true;
   }, [viewMode, leftClipPlane, rightClipPlane, boneMat, muscleMat, tendonMat]);
 
-  // Clone and assign materials to skeleton scene
   const skeletonScene = useMemo(() => {
     const clone = skeletonGLTF.scene.clone(true);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
-        child.material = boneMat;
+    clone.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).material = boneMat;
         child.castShadow = true;
         child.receiveShadow = true;
       }
@@ -188,11 +163,10 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     return clone;
   }, [skeletonGLTF.scene, boneMat]);
 
-  // Clone and assign materials to anatomy scene (muscles & tendons)
   const anatomyScene = useMemo(() => {
     const clone = anatomyGLTF.scene.clone(true);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
+    clone.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
         const name = (child.name || "").toLowerCase();
         const isTendon =
           name.includes("tendon") ||
@@ -202,7 +176,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           name.includes("membrane") ||
           name.includes("fascia");
 
-        child.material = isTendon ? tendonMat : muscleMat;
+        (child as THREE.Mesh).material = isTendon ? tendonMat : muscleMat;
         child.castShadow = true;
         child.receiveShadow = true;
       }
@@ -210,7 +184,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     return clone;
   }, [anatomyGLTF.scene, muscleMat, tendonMat]);
 
-  // Soft Floor Contact Shadow Texture
   const groundShadowTexture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -225,8 +198,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     return new THREE.CanvasTexture(canvas);
   }, []);
 
-  // Subtle breathing rhythm & dynamic highlighting when selected or hovered,
-  // synchronized with live mission physiological health telemetry
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
 
@@ -239,7 +210,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const isBrainActive = selectedSystem === "brain" || hoveredSystem === "brain";
     const isEyesActive = selectedSystem === "eyes" || hoveredSystem === "eyes";
 
-    // Dynamic degradation metrics (100 = nominal)
     const boneVal = healthValues ? healthValues.bones : 100;
     const muscleVal = healthValues ? healthValues.muscle : 100;
     const brainVal = healthValues ? healthValues.brain : 100;
@@ -250,17 +220,14 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const brainLoss = Math.max(0, 100 - brainVal);
     const eyeLoss = Math.max(0, 100 - eyeVal);
 
-    // 1. Bones highlight & decalcification stress aura
     if (isBonesActive) {
       boneMat.emissiveIntensity = 0.55 + Math.sin(time * 4.0) * 0.25;
     } else if (boneLoss > 0.5) {
-      // Subtle pulse alerting to calcium leaching and bone demineralization
       boneMat.emissiveIntensity = Math.min(0.35, (boneLoss / 8) * (0.15 + Math.sin(time * 2.5) * 0.1));
     } else {
       boneMat.emissiveIntensity = 0.0;
     }
 
-    // 2. Muscles highlight & postural atrophy volume shrinkage
     const atrophyScale = Math.max(0.97, 1.0 - (muscleLoss / 100) * 0.12);
     if (isMusclesActive) {
       const breath = Math.sin(time * 3.0) * 0.015 + 1.0;
@@ -275,7 +242,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         breathGroupRef.current.scale.set(atrophyScale, atrophyScale, atrophyScale);
       }
       if (muscleLoss > 2.0) {
-        // Micro-vascular warning pulse indicating fast-twitch atrophy
         muscleMat.emissiveIntensity = (muscleLoss / 20) * (0.16 + Math.sin(time * 3.0) * 0.1);
         tendonMat.emissiveIntensity = (muscleLoss / 20) * 0.08;
       } else {
@@ -284,7 +250,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }
     }
 
-    // 3. Brain highlight & cephalic fluid shift / intracranial pressure waves
     const fluidShiftRate = 3.6 + (brainLoss / 10) * 3.5;
     const wave = Math.sin(time * fluidShiftRate);
     const dilation = (brainLoss / 10) * 0.035;
@@ -303,7 +268,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }
     }
 
-    // 4. Eye highlight & SANS (Spaceflight-Associated Neuro-ocular Syndrome) reticle
     if (isEyesActive) {
       irisMat.emissiveIntensity = 0.85 + Math.sin(time * 4.0) * 0.3;
       if (eyeReticleRef.current) {
@@ -327,18 +291,18 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     }
   });
 
-  const handleClick = (id: SystemId) => (e: any) => {
+  const handleClick = (id: SystemId) => (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     onSelectSystem?.(selectedSystem === id ? null : id);
   };
 
-  const handlePointerOver = (id: SystemId) => (e: any) => {
+  const handlePointerOver = (id: SystemId) => (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     document.body.style.cursor = "pointer";
     onHoverSystem?.(id);
   };
 
-  const handlePointerOut = () => (e: any) => {
+  const handlePointerOut = () => (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     document.body.style.cursor = "default";
     onHoverSystem?.(null);
@@ -346,7 +310,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
   return (
     <group ref={groupRef} name="PhotorealisticEcorcheAnatomy">
-      {/* ---------------- 1. GROUND CONTACT SHADOW ---------------- */}
       <mesh
         position={[0, -0.915, 0.02]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -361,13 +324,11 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         />
       </mesh>
 
-      {/* ---------------- 2. MAIN ANATOMICAL MESH HIERARCHY ---------------- */}
       <group
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[0.0010546, 0.0010546, 0.0010546]}
       >
         <group position={[0, 109.02, -782.9]}>
-          {/* SKELETON MODEL (201 real bones) */}
           {viewMode !== "muscles" && (
             <primitive
               object={skeletonScene}
@@ -377,7 +338,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
             />
           )}
 
-          {/* MUSCULAR SYSTEM MODEL (467 real muscles & tendons) */}
           {viewMode !== "skeleton" && (
             <group ref={breathGroupRef}>
               <primitive
@@ -391,7 +351,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         </group>
       </group>
 
-      {/* ---------------- 3. BRAIN ORGAN (Anatomically placed in cranial vault: y=0.820, z=-0.046) ---------------- */}
       <group
         ref={brainPulseRef}
         position={[-0.015, 0.820, -0.046]}
@@ -399,24 +358,20 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         onPointerOver={handlePointerOver("brain")}
         onPointerOut={handlePointerOut()}
       >
-        {/* Main Cerebrum Hemispheres */}
         <mesh material={brainMat} scale={[1.0, 0.92, 1.15]}>
           <sphereGeometry args={[0.052, 28, 24]} />
         </mesh>
-        {/* Cerebellum (Posterior-Inferior) */}
         <mesh position={[0, -0.038, -0.032]} material={brainMat} scale={[1.05, 0.65, 0.85]}>
           <sphereGeometry args={[0.028, 20, 16]} />
         </mesh>
       </group>
 
-      {/* ---------------- 4. EYE ORGAN (Anatomically placed in right orbit socket: x=0.0325, y=0.7689, z=0.048) ---------------- */}
       <group
         position={[0.0325, 0.7689, 0.048]}
         onClick={handleClick("eyes")}
         onPointerOver={handlePointerOver("eyes")}
         onPointerOut={handlePointerOut()}
       >
-        {/* Reticle Focus Ring (Visible when selected) */}
         <mesh ref={eyeReticleRef} position={[0, 0, 0.015]} visible={false}>
           <ringGeometry args={[0.014, 0.017, 32]} />
           <meshBasicMaterial
@@ -427,18 +382,15 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           />
         </mesh>
 
-        {/* Anatomical 24mm Eyeball Globe */}
         <mesh>
           <sphereGeometry args={[0.0125, 24, 20]} />
           <meshStandardMaterial color="#f8fafc" roughness={0.12} metalness={0.02} />
         </mesh>
 
-        {/* Iris & Pupil Disk */}
         <mesh position={[0, 0, 0.0118]} material={irisMat}>
           <circleGeometry args={[0.0068, 32]} />
         </mesh>
 
-        {/* Glossy Cornea Layer */}
         <mesh position={[0, 0, 0.012]}>
           <sphereGeometry args={[0.0072, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2.2]} />
           <meshPhysicalMaterial
@@ -451,7 +403,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         </mesh>
       </group>
 
-      {/* ---------------- 5. TRANSLUCENT SILHOUETTE (Skeletal side X < 0) ---------------- */}
       {viewMode === "split" && (
         <group position={[-0.08, 0.32, 0]}>
           <mesh scale={[1.1, 1.25, 0.9]}>
