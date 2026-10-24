@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Stars, Sparkles } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { Link } from "react-router-dom";
@@ -27,8 +27,8 @@ const CameraController: React.FC<CameraControllerProps> = ({
   selectedSystem,
   controlsRef,
 }) => {
-  const defaultPos = useMemo(() => new THREE.Vector3(0, 0.05, 2.65), []);
-  const defaultTarget = useMemo(() => new THREE.Vector3(0, 0.0, 0), []);
+  const defaultPos = useMemo(() => new THREE.Vector3(0, 0.0, 2.85), []);
+  const defaultTarget = useMemo(() => new THREE.Vector3(0, -0.05, 0), []);
 
   useFrame((state, delta) => {
     if (!controlsRef.current) return;
@@ -79,13 +79,27 @@ const Simulator: React.FC = () => {
     const match = intervals.find((int) => int.day === currentDay);
     if (match) return match.health;
 
-    let active = intervals[0];
-    for (const int of intervals) {
-      if (int.day <= currentDay) {
-        active = int;
+    const sorted = [...intervals].sort((a, b) => a.day - b.day);
+    if (currentDay <= sorted[0].day) return sorted[0].health;
+    if (currentDay >= sorted[sorted.length - 1].day) {
+      return sorted[sorted.length - 1].health;
+    }
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const p1 = sorted[i];
+      const p2 = sorted[i + 1];
+      if (currentDay >= p1.day && currentDay <= p2.day) {
+        const span = p2.day - p1.day;
+        const t = span === 0 ? 0 : (currentDay - p1.day) / span;
+        return {
+          eye: p1.health.eye + (p2.health.eye - p1.health.eye) * t,
+          muscle: p1.health.muscle + (p2.health.muscle - p1.health.muscle) * t,
+          bones: p1.health.bones + (p2.health.bones - p1.health.bones) * t,
+          brain: p1.health.brain + (p2.health.brain - p1.health.brain) * t,
+        };
       }
     }
-    return active.health;
+    return sorted[0].health;
   }, [selectedMission, currentDay]);
 
   return (
@@ -93,9 +107,48 @@ const Simulator: React.FC = () => {
       className={`w-screen h-screen overflow-hidden relative select-none transition-colors duration-500 ${
         theme === "studio"
           ? "bg-gradient-to-b from-white via-slate-50 to-slate-200 text-slate-800"
-          : "bg-[#030712] text-white"
+          : "bg-[#020617] text-white"
       }`}
     >
+      {/* NASA Space Apps Minimalist Cosmic Background Ambient Gradients */}
+      {theme === "dark" && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute -top-40 -left-40 w-[32rem] h-[32rem] rounded-full bg-cyan-600/8 blur-[130px]" />
+          <div className="absolute -bottom-40 -right-40 w-[34rem] h-[34rem] rounded-full bg-indigo-600/7 blur-[140px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[48rem] h-[48rem] rounded-full bg-sky-500/4 blur-[160px]" />
+        </div>
+      )}
+
+      {/* NASA Mission Control Minimalist Corner Reticles & Coordinate Readouts */}
+      {theme === "dark" && (
+        <div className="absolute inset-0 pointer-events-none z-10 select-none overflow-hidden">
+          {/* 4 Viewport Corner Reticle Brackets */}
+          <span className="absolute top-3 left-3 text-cyan-500/25 font-mono text-sm leading-none font-light">
+            +
+          </span>
+          <span className="absolute top-3 right-3 text-cyan-500/25 font-mono text-sm leading-none font-light">
+            +
+          </span>
+          <span className="absolute bottom-3 left-3 text-cyan-500/25 font-mono text-sm leading-none font-light">
+            +
+          </span>
+          <span className="absolute bottom-3 right-3 text-cyan-500/25 font-mono text-sm leading-none font-light">
+            +
+          </span>
+
+          {/* Bottom Left Orbit Status Readout */}
+          <div className="absolute bottom-3.5 left-6 hidden lg:flex items-center gap-2 text-[9px] font-mono text-cyan-500/35 tracking-wider uppercase">
+            <span className="w-1 h-1 rounded-full bg-cyan-400/40" />
+            <span>LEO 418 KM • INCL: 51.6° • PERIOD: 92.9 MIN</span>
+          </div>
+
+          {/* Bottom Right Bio-Telemetry Status */}
+          <div className="absolute bottom-3.5 right-6 hidden lg:flex items-center gap-2 text-[9px] font-mono text-cyan-500/35 tracking-wider uppercase">
+            <span>NASA-HRP BIO-SIMULATION</span>
+            <span className="w-1 h-1 rounded-full bg-emerald-400/40" />
+          </div>
+        </div>
+      )}
       <div className="absolute top-4 left-5 right-5 z-20 flex flex-wrap items-start justify-between gap-3 pointer-events-none">
         <div className="flex flex-col items-start gap-2.5 pointer-events-auto w-52 max-w-[90vw]">
           <Link
@@ -266,12 +319,12 @@ const Simulator: React.FC = () => {
             {theme === "studio" ? (
               <>
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shadow-sm" />
-                <span className="hidden sm:inline">Studio</span>
+                <span className="hidden sm:inline">Lab Light</span>
               </>
             ) : (
               <>
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block shadow-[0_0_8px_#22d3ee]" />
-                <span className="hidden sm:inline">Dark</span>
+                <span className="hidden sm:inline">Cosmic Void</span>
               </>
             )}
           </button>
@@ -312,7 +365,7 @@ const Simulator: React.FC = () => {
 
       <Canvas
         camera={{
-          position: [0, 0.05, 2.65],
+          position: [0, 0.0, 2.85],
           fov: 42,
           near: 0.1,
           far: 100,
@@ -328,12 +381,12 @@ const Simulator: React.FC = () => {
       >
         <color
           attach="background"
-          args={[theme === "studio" ? "#f8fafc" : "#030712"]}
+          args={[theme === "studio" ? "#f8fafc" : "#020617"]}
         />
 
         {theme === "studio" ? (
           <>
-            <ambientLight intensity={0.85} color="#ffffff" />
+            <ambientLight intensity={0.9} color="#ffffff" />
             <directionalLight
               position={[2.8, 3.8, 2.8]}
               intensity={1.8}
@@ -357,26 +410,94 @@ const Simulator: React.FC = () => {
           </>
         ) : (
           <>
-            <ambientLight intensity={0.5} color="#0c192c" />
+            {/* Minimalist NASA Cosmic Starfield */}
+            <Stars
+              radius={60}
+              depth={45}
+              count={1600}
+              factor={3.0}
+              saturation={0}
+              fade
+              speed={0.4}
+            />
+
+            {/* Microgravity Space Ambient Floating Particles */}
+            <Sparkles
+              count={55}
+              scale={[2.6, 3.4, 2.6]}
+              size={1.6}
+              speed={0.25}
+              opacity={0.32}
+              color="#38bdf8"
+            />
+
+            {/* Distant Earth Horizon Atmospheric Rim (Low Earth Orbit view) */}
+            <group position={[0, -23.4, -6.0]}>
+              <mesh>
+                <sphereGeometry args={[22, 64, 48]} />
+                <meshStandardMaterial
+                  color="#051329"
+                  roughness={0.92}
+                  metalness={0.05}
+                />
+              </mesh>
+              {/* Earth Atmospheric Glow Arc */}
+              <mesh scale={[1.004, 1.004, 1.004]}>
+                <sphereGeometry args={[22, 64, 48]} />
+                <meshBasicMaterial
+                  color="#0284c7"
+                  transparent
+                  opacity={0.15}
+                  side={THREE.BackSide}
+                />
+              </mesh>
+            </group>
+
+            {/* Minimalist Holographic Telemetry Orbital Platform */}
+            <group position={[0, -0.918, 0]}>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.26, 0.262, 64]} />
+                <meshBasicMaterial color="#38bdf8" transparent opacity={0.25} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.54, 0.542, 64]} />
+                <meshBasicMaterial color="#0284c7" transparent opacity={0.16} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.82, 0.822, 64]} />
+                <meshBasicMaterial color="#0369a1" transparent opacity={0.10} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[1.7, 0.0012]} />
+                <meshBasicMaterial color="#0284c7" transparent opacity={0.12} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+                <planeGeometry args={[1.7, 0.0012]} />
+                <meshBasicMaterial color="#0284c7" transparent opacity={0.12} />
+              </mesh>
+            </group>
+
+            {/* Space Lighting: Direct Space Sunlight + Oceanic Earth-Shine Fill */}
+            <ambientLight intensity={0.55} color="#0c1728" />
             <directionalLight
-              position={[3.2, 3.5, 3.2]}
-              intensity={1.5}
+              position={[3.2, 4.2, 3.0]}
+              intensity={1.9}
+              color="#fffef7"
+            />
+            <directionalLight
+              position={[-3.0, 1.2, 2.2]}
+              intensity={1.1}
               color="#38bdf8"
             />
             <directionalLight
-              position={[-3.0, 1.2, 2.5]}
-              intensity={0.9}
-              color="#06b6d4"
-            />
-            <directionalLight
-              position={[0, 4.0, -3.6]}
-              intensity={2.2}
+              position={[0, 4.0, -3.8]}
+              intensity={2.0}
               color="#67e8f9"
             />
             <directionalLight
               position={[0, -3.0, 1.2]}
-              intensity={0.4}
-              color="#083344"
+              intensity={0.35}
+              color="#082f49"
             />
           </>
         )}

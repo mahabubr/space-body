@@ -33,17 +33,34 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   const groupRef = useRef<THREE.Group>(null);
   const breathGroupRef = useRef<THREE.Group>(null);
   const brainPulseRef = useRef<THREE.Group>(null);
+  const eyeGlobeRef = useRef<THREE.Group>(null);
   const eyeReticleRef = useRef<THREE.Mesh>(null);
+
+  // Smooth real-time animated health metrics for interval changes
+  const animatedHealth = useRef<{
+    eye: number;
+    muscle: number;
+    bones: number;
+    brain: number;
+  }>({
+    eye: healthValues ? healthValues.eye : 100,
+    muscle: healthValues ? healthValues.muscle : 100,
+    bones: healthValues ? healthValues.bones : 100,
+    brain: healthValues ? healthValues.brain : 100,
+  });
 
   const skeletonGLTF = useGLTF("/models/skeleton.glb");
   const anatomyGLTF = useGLTF("/models/anatomy.glb");
 
-  const leftClipPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(1, 0, 0), 0.003),
+  // Sagittal Split Planes in World Space:
+  // skeletonClipPlane: normal [-1, 0, 0] -> keeps x <= 0.002 (left side: skeleton)
+  // muscleClipPlane: normal [1, 0, 0] -> keeps x >= -0.002 (right side: musculature)
+  const skeletonClipPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.002),
     []
   );
-  const rightClipPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0.003),
+  const muscleClipPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(1, 0, 0), 0.002),
     []
   );
 
@@ -52,6 +69,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
   const materials = useRef<{
     boneMat: THREE.MeshStandardMaterial;
+    skullCapMat: THREE.MeshPhysicalMaterial;
     muscleMat: THREE.MeshStandardMaterial;
     tendonMat: THREE.MeshStandardMaterial;
     brainMat: THREE.MeshStandardMaterial;
@@ -61,60 +79,82 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   if (!materials.current) {
     materials.current = {
       boneMat: new THREE.MeshStandardMaterial({
-        color: new THREE.Color("#f6f1e6"),
-        roughness: 0.42,
+        color: new THREE.Color("#fbf7ee"),
+        roughness: 0.38,
         metalness: 0.02,
         side: THREE.DoubleSide,
-        clippingPlanes: viewMode === "split" ? [leftClipPlane] : [],
+        clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
         clipShadows: true,
-        emissive: new THREE.Color("#0284c7"),
+        emissive: new THREE.Color("#fbbf24"),
+        emissiveIntensity: 0.0,
+      }),
+      // Anatomical translucent calvarial skull window revealing the brain clearly inside the skull
+      skullCapMat: new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#fbf7ee"),
+        roughness: 0.28,
+        metalness: 0.05,
+        transmission: 0.82,
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#fbbf24"),
         emissiveIntensity: 0.0,
       }),
       muscleMat: new THREE.MeshStandardMaterial({
-        color: new THREE.Color("#a81d1d"),
-        roughness: 0.42,
+        color: new THREE.Color("#c02626"),
+        roughness: 0.38,
         metalness: 0.02,
         side: THREE.DoubleSide,
-        clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
+        clippingPlanes: viewMode === "split" ? [muscleClipPlane] : [],
         clipShadows: true,
-        emissive: new THREE.Color("#ea580c"),
+        emissive: new THREE.Color("#f43f5e"),
         emissiveIntensity: 0.0,
       }),
       tendonMat: new THREE.MeshStandardMaterial({
         color: new THREE.Color("#f8fafc"),
-        roughness: 0.28,
+        roughness: 0.26,
         metalness: 0.03,
         side: THREE.DoubleSide,
-        clippingPlanes: viewMode === "split" ? [rightClipPlane] : [],
+        clippingPlanes: viewMode === "split" ? [muscleClipPlane] : [],
         clipShadows: true,
-        emissive: new THREE.Color("#ea580c"),
+        emissive: new THREE.Color("#f43f5e"),
         emissiveIntensity: 0.0,
       }),
       brainMat: new THREE.MeshStandardMaterial({
         map: brainTexture,
-        color: new THREE.Color("#f472b6"),
-        roughness: 0.35,
+        color: new THREE.Color("#fca5a5"),
+        roughness: 0.30,
         metalness: 0.04,
         emissive: new THREE.Color("#ec4899"),
-        emissiveIntensity: 0.0,
+        emissiveIntensity: 0.06,
       }),
       irisMat: new THREE.MeshStandardMaterial({
         map: irisTexture,
-        roughness: 0.08,
-        metalness: 0.05,
+        roughness: 0.06,
+        metalness: 0.04,
         emissive: new THREE.Color("#0284c7"),
         emissiveIntensity: 0.0,
       }),
     };
   }
 
-  const { boneMat, muscleMat, tendonMat, brainMat, irisMat } = materials.current;
+  const {
+    boneMat,
+    skullCapMat,
+    muscleMat,
+    tendonMat,
+    brainMat,
+    irisMat,
+  } = materials.current;
 
   useEffect(() => {
     if (viewMode === "split") {
-      boneMat.clippingPlanes = [leftClipPlane];
-      muscleMat.clippingPlanes = [rightClipPlane];
-      tendonMat.clippingPlanes = [rightClipPlane];
+      boneMat.clippingPlanes = [skeletonClipPlane];
+      skullCapMat.clippingPlanes = [skeletonClipPlane];
+      muscleMat.clippingPlanes = [muscleClipPlane];
+      tendonMat.clippingPlanes = [muscleClipPlane];
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
       muscleMat.transparent = false;
@@ -123,6 +163,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       tendonMat.opacity = 1.0;
     } else if (viewMode === "muscles") {
       boneMat.clippingPlanes = [];
+      skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       muscleMat.transparent = false;
@@ -131,12 +172,14 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       tendonMat.opacity = 1.0;
     } else if (viewMode === "skeleton") {
       boneMat.clippingPlanes = [];
+      skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
     } else if (viewMode === "layered") {
       boneMat.clippingPlanes = [];
+      skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       boneMat.transparent = false;
@@ -147,27 +190,38 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       tendonMat.opacity = 0.58;
     }
     boneMat.needsUpdate = true;
+    skullCapMat.needsUpdate = true;
     muscleMat.needsUpdate = true;
     tendonMat.needsUpdate = true;
-  }, [viewMode, leftClipPlane, rightClipPlane, boneMat, muscleMat, tendonMat]);
+  }, [viewMode, skeletonClipPlane, muscleClipPlane, boneMat, skullCapMat, muscleMat, tendonMat]);
 
   const skeletonScene = useMemo(() => {
     const clone = skeletonGLTF.scene.clone(true);
     clone.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
-        (child as THREE.Mesh).material = boneMat;
+        const name = (child.name || "").toLowerCase();
+        // Give parietal calvaria bone a translucent anatomical window to expose the brain inside
+        const isParietal = name.includes("parietal");
+        (child as THREE.Mesh).material = isParietal ? skullCapMat : boneMat;
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
     return clone;
-  }, [skeletonGLTF.scene, boneMat]);
+  }, [skeletonGLTF.scene, boneMat, skullCapMat]);
 
   const anatomyScene = useMemo(() => {
     const clone = anatomyGLTF.scene.clone(true);
     clone.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
         const name = (child.name || "").toLowerCase();
+
+        // Clear the closed eyelid mesh so the eyeball, iris, and cornea are 100% visible
+        if (name.includes("palpebral_part_of_orbicularis_oculi")) {
+          child.visible = false;
+          return;
+        }
+
         const isTendon =
           name.includes("tendon") ||
           name.includes("ligament") ||
@@ -198,7 +252,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     return new THREE.CanvasTexture(canvas);
   }, []);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const time = state.clock.getElapsedTime();
 
     if (!disableFloat && groupRef.current) {
@@ -210,79 +264,167 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const isBrainActive = selectedSystem === "brain" || hoveredSystem === "brain";
     const isEyesActive = selectedSystem === "eyes" || hoveredSystem === "eyes";
 
-    const boneVal = healthValues ? healthValues.bones : 100;
-    const muscleVal = healthValues ? healthValues.muscle : 100;
-    const brainVal = healthValues ? healthValues.brain : 100;
-    const eyeVal = healthValues ? healthValues.eye : 100;
+    const targetBone = healthValues ? healthValues.bones : 100;
+    const targetMuscle = healthValues ? healthValues.muscle : 100;
+    const targetBrain = healthValues ? healthValues.brain : 100;
+    const targetEye = healthValues ? healthValues.eye : 100;
+
+    // Smooth real-time animated lerp on interval changes so the user visibly watches degradation
+    const lerpFactor = 1.0 - Math.exp(-delta * 5.0);
+    animatedHealth.current.bones = THREE.MathUtils.lerp(
+      animatedHealth.current.bones,
+      targetBone,
+      lerpFactor
+    );
+    animatedHealth.current.muscle = THREE.MathUtils.lerp(
+      animatedHealth.current.muscle,
+      targetMuscle,
+      lerpFactor
+    );
+    animatedHealth.current.brain = THREE.MathUtils.lerp(
+      animatedHealth.current.brain,
+      targetBrain,
+      lerpFactor
+    );
+    animatedHealth.current.eye = THREE.MathUtils.lerp(
+      animatedHealth.current.eye,
+      targetEye,
+      lerpFactor
+    );
+
+    const boneVal = animatedHealth.current.bones;
+    const muscleVal = animatedHealth.current.muscle;
+    const brainVal = animatedHealth.current.brain;
+    const eyeVal = animatedHealth.current.eye;
 
     const boneLoss = Math.max(0, 100 - boneVal);
     const muscleLoss = Math.max(0, 100 - muscleVal);
     const brainLoss = Math.max(0, 100 - brainVal);
     const eyeLoss = Math.max(0, 100 - eyeVal);
 
+    // 1. SKELETAL SYSTEM (Bone Decalcification & Porosity)
+    const normBoneLoss = Math.min(1.0, boneLoss / 5.0);
     if (isBonesActive) {
-      boneMat.emissiveIntensity = 0.55 + Math.sin(time * 4.0) * 0.25;
-    } else if (boneLoss > 0.5) {
-      boneMat.emissiveIntensity = Math.min(0.35, (boneLoss / 8) * (0.15 + Math.sin(time * 2.5) * 0.1));
+      boneMat.emissive.set("#fbbf24");
+      boneMat.emissiveIntensity = 0.65 + Math.sin(time * 3.6) * 0.25;
+      skullCapMat.emissive.set("#fbbf24");
+      skullCapMat.emissiveIntensity = 0.45;
+    } else if (normBoneLoss > 0.02) {
+      boneMat.roughness = 0.38 + normBoneLoss * 0.32;
+      boneMat.color.lerpColors(
+        new THREE.Color("#fbf7ee"),
+        new THREE.Color("#dcd4c4"),
+        normBoneLoss
+      );
+      boneMat.emissive.set("#fbbf24");
+      boneMat.emissiveIntensity =
+        normBoneLoss * 0.35 * (0.8 + Math.sin(time * 2.0) * 0.2);
+
+      skullCapMat.roughness = boneMat.roughness;
+      skullCapMat.color.copy(boneMat.color);
+      skullCapMat.emissive.set("#fbbf24");
+      skullCapMat.emissiveIntensity = boneMat.emissiveIntensity * 0.6;
     } else {
+      boneMat.roughness = 0.38;
+      boneMat.color.set("#fbf7ee");
       boneMat.emissiveIntensity = 0.0;
+      skullCapMat.roughness = 0.28;
+      skullCapMat.color.set("#fbf7ee");
+      skullCapMat.emissiveIntensity = 0.0;
     }
 
-    const atrophyScale = Math.max(0.97, 1.0 - (muscleLoss / 100) * 0.12);
+    // 2. MUSCULAR SYSTEM (Postural Atrophy - mass reduction & tone loss)
+    const normMuscleLoss = Math.min(1.0, muscleLoss / 14.0);
+    const atrophyScale = 1.0 - normMuscleLoss * 0.18;
+
     if (isMusclesActive) {
-      const breath = Math.sin(time * 3.0) * 0.015 + 1.0;
+      const breath = 1.0 + Math.sin(time * 3.0) * 0.012;
       if (breathGroupRef.current) {
-        const currentScale = breath * atrophyScale;
-        breathGroupRef.current.scale.set(currentScale, currentScale, currentScale);
+        breathGroupRef.current.scale.set(
+          atrophyScale * breath,
+          atrophyScale * breath,
+          1.0
+        );
       }
-      muscleMat.emissiveIntensity = 0.55 + Math.sin(time * 4.0) * 0.25;
+      muscleMat.emissive.set("#f43f5e");
+      muscleMat.emissiveIntensity = 0.65 + Math.sin(time * 4.0) * 0.25;
+      tendonMat.emissive.set("#f43f5e");
       tendonMat.emissiveIntensity = 0.35;
     } else {
       if (breathGroupRef.current) {
-        breathGroupRef.current.scale.set(atrophyScale, atrophyScale, atrophyScale);
+        breathGroupRef.current.scale.set(atrophyScale, atrophyScale, 1.0);
       }
-      if (muscleLoss > 2.0) {
-        muscleMat.emissiveIntensity = (muscleLoss / 20) * (0.16 + Math.sin(time * 3.0) * 0.1);
-        tendonMat.emissiveIntensity = (muscleLoss / 20) * 0.08;
+      if (normMuscleLoss > 0.02) {
+        muscleMat.color.lerpColors(
+          new THREE.Color("#c02626"),
+          new THREE.Color("#78350f"),
+          normMuscleLoss * 0.85
+        );
+        muscleMat.roughness = 0.38 + normMuscleLoss * 0.24;
+        muscleMat.emissive.set("#ea580c");
+        muscleMat.emissiveIntensity =
+          normMuscleLoss * 0.38 * (0.8 + Math.sin(time * 2.2) * 0.2);
+        tendonMat.emissive.set("#ea580c");
+        tendonMat.emissiveIntensity = normMuscleLoss * 0.15;
       } else {
+        muscleMat.color.set("#c02626");
+        muscleMat.roughness = 0.38;
         muscleMat.emissiveIntensity = 0.0;
         tendonMat.emissiveIntensity = 0.0;
       }
     }
 
-    const fluidShiftRate = 3.6 + (brainLoss / 10) * 3.5;
-    const wave = Math.sin(time * fluidShiftRate);
-    const dilation = (brainLoss / 10) * 0.035;
+    // 3. CENTRAL NERVOUS SYSTEM (Brain Cephalic Fluid Shift & ICP Pulsation)
+    const normBrainLoss = Math.min(1.0, brainLoss / 4.0);
+    const fluidShiftRate = 2.4 + normBrainLoss * 2.5;
+    const icpWave = Math.sin(time * fluidShiftRate);
+    const fluidExpansion = normBrainLoss * 0.055;
+    const pulseDilation =
+      fluidExpansion + icpWave * (0.015 + normBrainLoss * 0.025);
+
+    if (brainPulseRef.current) {
+      const s = 1.0 + pulseDilation;
+      brainPulseRef.current.scale.set(s, s, s);
+    }
 
     if (isBrainActive) {
-      brainMat.emissiveIntensity = 0.85 + wave * 0.3;
-      if (brainPulseRef.current) {
-        const s = 1.0 + wave * 0.04 + Math.sin(time * fluidShiftRate) * dilation;
-        brainPulseRef.current.scale.set(s, s, s);
-      }
+      skullCapMat.opacity = 0.15;
+      brainMat.emissive.set("#ec4899");
+      brainMat.emissiveIntensity = 0.85 + icpWave * 0.28;
     } else {
-      brainMat.emissiveIntensity = brainLoss > 0.5 ? 0.05 + (brainLoss / 10) * 0.3 : 0.05;
-      if (brainPulseRef.current) {
-        const s = 1.0 + Math.sin(time * fluidShiftRate) * dilation;
-        brainPulseRef.current.scale.set(s, s, s);
-      }
+      skullCapMat.opacity = 0.28;
+      brainMat.emissive.set("#ec4899");
+      brainMat.emissiveIntensity =
+        0.06 + normBrainLoss * 0.38 * (0.85 + icpWave * 0.15);
+    }
+
+    // 4. VISUAL SYSTEM & SANS (Optic Disc Edema & Globe Flattening)
+    const normEyeLoss = Math.min(1.0, eyeLoss / 5.0);
+
+    if (eyeGlobeRef.current) {
+      const flatZ = 1.0 - normEyeLoss * 0.10;
+      const flatXY = 1.0 + normEyeLoss * 0.035;
+      eyeGlobeRef.current.scale.set(flatXY, flatXY, flatZ);
     }
 
     if (isEyesActive) {
-      irisMat.emissiveIntensity = 0.85 + Math.sin(time * 4.0) * 0.3;
+      irisMat.emissive.set("#0284c7");
+      irisMat.emissiveIntensity = 0.80 + Math.sin(time * 4.0) * 0.25;
       if (eyeReticleRef.current) {
-        eyeReticleRef.current.rotation.z = time * 2.5;
         eyeReticleRef.current.visible = true;
+        eyeReticleRef.current.rotation.z = time * 2.2;
         const s = 1.0 + Math.sin(time * 3.0) * 0.06;
         eyeReticleRef.current.scale.set(s, s, s);
       }
     } else {
-      irisMat.emissiveIntensity = eyeLoss > 1.0 ? (eyeLoss / 10) * 0.35 : 0.0;
+      irisMat.emissive.set("#0284c7");
+      irisMat.emissiveIntensity =
+        normEyeLoss > 0.02 ? normEyeLoss * 0.35 : 0.0;
       if (eyeReticleRef.current) {
-        if (eyeLoss > 1.5) {
+        if (normEyeLoss > 0.05) {
           eyeReticleRef.current.visible = true;
-          eyeReticleRef.current.rotation.z = time * 1.5;
-          const s = 1.0 + Math.sin(time * 2.0) * 0.08;
+          eyeReticleRef.current.rotation.z = time * 1.4;
+          const s = 1.0 + Math.sin(time * 2.0) * 0.05;
           eyeReticleRef.current.scale.set(s, s, s);
         } else {
           eyeReticleRef.current.visible = false;
@@ -310,6 +452,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
   return (
     <group ref={groupRef} name="PhotorealisticEcorcheAnatomy">
+      {/* Ground Contact Shadow */}
       <mesh
         position={[0, -0.915, 0.02]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -324,6 +467,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         />
       </mesh>
 
+      {/* Main 3D Skeleton & Muscle Anatomical Assemblies */}
       <group
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[0.0010546, 0.0010546, 0.0010546]}
@@ -339,9 +483,14 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           )}
 
           {viewMode !== "skeleton" && (
-            <group ref={breathGroupRef}>
+            /* Centered Pivot Group: Scales radially inward around the torso center [0, -101, 763] */
+            <group
+              ref={breathGroupRef}
+              position={[0, -101, 763]}
+            >
               <primitive
                 object={anatomyScene}
+                position={[0, 101, -763]}
                 onClick={handleClick("muscles")}
                 onPointerOver={handlePointerOver("muscles")}
                 onPointerOut={handlePointerOut()}
@@ -351,29 +500,68 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         </group>
       </group>
 
+      {/* Anatomical Central Nervous System (Brain Vault: Cerebrum, Cerebellum, Brainstem) */}
       <group
         ref={brainPulseRef}
-        position={[-0.015, 0.820, -0.046]}
+        position={[0.0, 0.816, -0.016]}
         onClick={handleClick("brain")}
         onPointerOver={handlePointerOver("brain")}
         onPointerOut={handlePointerOut()}
       >
-        <mesh material={brainMat} scale={[1.0, 0.92, 1.15]}>
-          <sphereGeometry args={[0.052, 28, 24]} />
+        {/* Left Cerebral Hemisphere */}
+        <mesh
+          position={[0.021, 0.004, 0.002]}
+          material={brainMat}
+          scale={[1.0, 1.10, 1.30]}
+        >
+          <sphereGeometry args={[0.030, 28, 24]} />
         </mesh>
-        <mesh position={[0, -0.038, -0.032]} material={brainMat} scale={[1.05, 0.65, 0.85]}>
-          <sphereGeometry args={[0.028, 20, 16]} />
+
+        {/* Right Cerebral Hemisphere */}
+        <mesh
+          position={[-0.021, 0.004, 0.002]}
+          material={brainMat}
+          scale={[1.0, 1.10, 1.30]}
+        >
+          <sphereGeometry args={[0.030, 28, 24]} />
+        </mesh>
+
+        {/* Cerebellum (Postero-inferior Bilateral Lobes) */}
+        <mesh
+          position={[0.016, -0.034, -0.028]}
+          material={brainMat}
+          scale={[1.1, 0.82, 0.95]}
+        >
+          <sphereGeometry args={[0.018, 22, 18]} />
+        </mesh>
+        <mesh
+          position={[-0.016, -0.034, -0.028]}
+          material={brainMat}
+          scale={[1.1, 0.82, 0.95]}
+        >
+          <sphereGeometry args={[0.018, 22, 18]} />
+        </mesh>
+
+        {/* Brainstem (Pons & Medulla Oblongata) */}
+        <mesh
+          position={[0.0, -0.048, -0.015]}
+          rotation={[0.1, 0, 0]}
+          material={brainMat}
+        >
+          <cylinderGeometry args={[0.0085, 0.0065, 0.028, 18]} />
         </mesh>
       </group>
 
+      {/* Anatomical Visual System & SANS Globe (Centered in right orbital socket) */}
       <group
-        position={[0.0325, 0.7689, 0.048]}
+        position={[0.0265, 0.776, 0.046]}
         onClick={handleClick("eyes")}
         onPointerOver={handlePointerOver("eyes")}
         onPointerOut={handlePointerOut()}
       >
-        <mesh ref={eyeReticleRef} position={[0, 0, 0.015]} visible={false}>
-          <ringGeometry args={[0.014, 0.017, 32]} />
+        {/* SANS Diagnostic HUD Reticle */}
+        <mesh ref={eyeReticleRef} position={[0, 0, 0.016]} visible={false}>
+          <ringGeometry args={[0.014, 0.0165, 32]} />
           <meshBasicMaterial
             color="#38bdf8"
             side={THREE.DoubleSide}
@@ -382,42 +570,47 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           />
         </mesh>
 
-        <mesh>
-          <sphereGeometry args={[0.0125, 24, 20]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.12} metalness={0.02} />
-        </mesh>
+        <group ref={eyeGlobeRef}>
+          {/* Sclera (Eyeball Globe) */}
+          <mesh>
+            <sphereGeometry args={[0.0125, 28, 24]} />
+            <meshStandardMaterial
+              color="#f8fafc"
+              roughness={0.10}
+              metalness={0.02}
+            />
+          </mesh>
 
-        <mesh position={[0, 0, 0.0118]} material={irisMat}>
-          <circleGeometry args={[0.0068, 32]} />
-        </mesh>
+          {/* Iris */}
+          <mesh position={[0, 0, 0.0114]} material={irisMat}>
+            <circleGeometry args={[0.0064, 32]} />
+          </mesh>
 
-        <mesh position={[0, 0, 0.012]}>
-          <sphereGeometry args={[0.0072, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2.2]} />
-          <meshPhysicalMaterial
-            roughness={0.04}
-            transmission={0.92}
-            transparent={true}
-            opacity={0.4}
-            ior={1.38}
-          />
-        </mesh>
-      </group>
-
-      {viewMode === "split" && (
-        <group position={[-0.08, 0.32, 0]}>
-          <mesh scale={[1.1, 1.25, 0.9]}>
-            <capsuleGeometry args={[0.09, 0.22, 14, 18]} />
+          {/* Refractive Transparent Cornea Dome */}
+          <mesh position={[0, 0, 0.0118]}>
+            <sphereGeometry
+              args={[0.0070, 24, 20, 0, Math.PI * 2, 0, Math.PI / 2.2]}
+            />
             <meshPhysicalMaterial
-              color="#fed7aa"
-              roughness={0.35}
-              transmission={0.82}
+              roughness={0.02}
+              transmission={0.96}
               transparent={true}
-              opacity={0.18}
-              side={THREE.DoubleSide}
+              opacity={0.35}
+              ior={1.376}
+            />
+          </mesh>
+
+          {/* Optic Nerve Sheath (Posterior Pole extending toward optic canal) */}
+          <mesh position={[0, 0, -0.014]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.0034, 0.0042, 0.018, 16]} />
+            <meshStandardMaterial
+              color="#fbcfe8"
+              roughness={0.4}
+              metalness={0.02}
             />
           </mesh>
         </group>
-      )}
+      </group>
     </group>
   );
 };
