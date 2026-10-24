@@ -1,9 +1,15 @@
 import React from "react";
-import type { HealthMetrics } from "../../../../health-data";
+import * as THREE from "three";
+import { Html } from "@react-three/drei";
+import type { HealthMetrics, MissionData } from "../../../../health-data";
 import type { SystemId } from "../../../components/human/internal/system-data";
+import { SYSTEMS_DATA } from "../../../components/human/internal/system-data";
+import SystemTelemetryIndicator from "./SystemTelemetryIndicator";
 
 interface HealthIndicatorsPanelProps {
   healthValues: HealthMetrics;
+  selectedMission: MissionData;
+  currentDay: number;
   selectedSystem: SystemId | null;
   onSelectSystem: (system: SystemId | null) => void;
   hoveredSystem: SystemId | null;
@@ -11,50 +17,89 @@ interface HealthIndicatorsPanelProps {
   theme: "studio" | "dark";
 }
 
-const SYSTEMS: {
+interface SystemIndicatorConfig {
   id: SystemId;
   key: keyof HealthMetrics;
   label: string;
   color: string;
   darkColor: string;
-  barColor: string;
-}[] = [
+  anchor: [number, number, number];
+  line: {
+    side: "left" | "right";
+    elbowX: number;
+    elbowY: number;
+    endX: number;
+    endY: number;
+  };
+}
+
+const SYSTEMS_CONFIG: SystemIndicatorConfig[] = [
+  {
+    id: "brain",
+    key: "brain",
+    label: "Brain / CNS",
+    color: "#9333ea",
+    darkColor: "#c084fc",
+    anchor: [-0.015, 0.825, -0.02],
+    line: {
+      side: "left",
+      elbowX: -36,
+      elbowY: -45,
+      endX: -115,
+      endY: -45,
+    },
+  },
   {
     id: "eyes",
     key: "eye",
-    label: "Eye",
+    label: "Visual System (SANS)",
     color: "#0284c7",
     darkColor: "#38bdf8",
-    barColor: "bg-sky-500",
-  },
-  {
-    id: "muscles",
-    key: "muscle",
-    label: "Muscle",
-    color: "#be185d",
-    darkColor: "#f43f5e",
-    barColor: "bg-rose-500",
+    anchor: [0.0325, 0.7689, 0.048],
+    line: {
+      side: "right",
+      elbowX: 36,
+      elbowY: -35,
+      endX: 115,
+      endY: -35,
+    },
   },
   {
     id: "bones",
     key: "bones",
-    label: "Bones",
+    label: "Skeletal System",
     color: "#d97706",
     darkColor: "#fbbf24",
-    barColor: "bg-amber-500",
+    anchor: [-0.09, -0.16, 0.0],
+    line: {
+      side: "left",
+      elbowX: -40,
+      elbowY: -15,
+      endX: -120,
+      endY: -15,
+    },
   },
   {
-    id: "brain",
-    key: "brain",
-    label: "Brain",
-    color: "#9333ea",
-    darkColor: "#c084fc",
-    barColor: "bg-purple-500",
+    id: "muscles",
+    key: "muscle",
+    label: "Muscular System",
+    color: "#be185d",
+    darkColor: "#f43f5e",
+    anchor: [0.1, 0.06, 0.04],
+    line: {
+      side: "right",
+      elbowX: 40,
+      elbowY: 25,
+      endX: 120,
+      endY: 25,
+    },
   },
 ];
 
 export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
   healthValues,
+  selectedMission,
+  currentDay,
   selectedSystem,
   onSelectSystem,
   hoveredSystem,
@@ -64,80 +109,150 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
   const isDark = theme === "dark";
 
   return (
-    <div
-      className={`rounded-2xl backdrop-blur-xl border p-3 shadow-xl transition-all duration-300 w-56 ${
-        isDark
-          ? "bg-slate-950/80 border-slate-800 text-slate-100 shadow-cyan-950/20"
-          : "bg-white/90 border-slate-200 text-slate-800 shadow-slate-300/40"
-      }`}
-    >
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-800/80">
-        <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Health Systems
-        </span>
-        {selectedSystem && (
-          <button
-            onClick={() => onSelectSystem(null)}
-            className="text-[10px] font-mono text-sky-600 dark:text-cyan-400 hover:underline"
-          >
-            Reset
-          </button>
-        )}
-      </div>
+    <group name="health-indicators-group">
+      {SYSTEMS_CONFIG.map((sys) => {
+        const systemInfo = SYSTEMS_DATA[sys.id];
+        const val = healthValues[sys.key] ?? 100;
+        const isSelected = selectedSystem === sys.id;
+        const isHovered = hoveredSystem === sys.id;
+        const isActive = isSelected || isHovered;
 
-      <div className="space-y-1.5">
-        {SYSTEMS.map((sys) => {
-          const val = healthValues[sys.key];
-          const isSelected = selectedSystem === sys.id;
-          const isHovered = hoveredSystem === sys.id;
+        const description = selectedMission.description
+          ? sys.id === "eyes"
+            ? selectedMission.description.eye
+            : sys.id === "muscles"
+            ? selectedMission.description.muscle
+            : sys.id === "bones"
+            ? selectedMission.description.bones
+            : selectedMission.description.brain
+          : null;
 
-          return (
-            <button
-              key={sys.id}
-              onClick={() => onSelectSystem(isSelected ? null : sys.id)}
-              onMouseEnter={() => onHoverSystem(sys.id)}
-              onMouseLeave={() => onHoverSystem(null)}
-              className={`w-full text-left p-2 rounded-xl border transition-all ${
-                isSelected
-                  ? isDark
-                    ? "bg-slate-800/90 border-cyan-400 ring-1 ring-cyan-400/40 shadow-sm"
-                    : "bg-sky-50 border-sky-500 ring-1 ring-sky-400/40 shadow-sm"
-                  : isHovered
-                  ? isDark
-                    ? "bg-slate-900 border-slate-700"
-                    : "bg-slate-100 border-slate-300"
-                  : isDark
-                  ? "bg-slate-900/40 border-slate-800/60 hover:border-slate-700"
-                  : "bg-slate-50/60 border-slate-200/60 hover:border-slate-300"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2 h-2 rounded-full inline-block shrink-0"
+        const strokeColor = isActive
+          ? isDark
+            ? sys.darkColor
+            : sys.color
+          : isDark
+          ? "rgba(148, 163, 184, 0.45)"
+          : "rgba(100, 116, 139, 0.45)";
+
+        const accentColor = isDark ? sys.darkColor : sys.color;
+
+        return (
+          <group key={sys.id} position={sys.anchor}>
+            {/* 3D Anchor Glow Marker on anatomical organ */}
+            <mesh>
+              <sphereGeometry args={[0.007, 16, 16]} />
+              <meshBasicMaterial
+                color={accentColor}
+                transparent
+                opacity={isActive ? 1.0 : 0.75}
+              />
+            </mesh>
+            {isActive && (
+              <mesh>
+                <ringGeometry args={[0.012, 0.015, 24]} />
+                <meshBasicMaterial
+                  color={accentColor}
+                  transparent
+                  opacity={0.8}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            )}
+
+            {/* 2D Connected Callout HUD with integrated SystemTelemetryIndicator */}
+            <Html center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
+              <div
+                className={`relative pointer-events-none select-none transition-opacity duration-300 ${
+                  selectedSystem && !isSelected && !isHovered
+                    ? "opacity-40 hover:opacity-100"
+                    : "opacity-100"
+                }`}
+                onMouseEnter={() => onHoverSystem(sys.id)}
+                onMouseLeave={() => onHoverSystem(null)}
+              >
+                {/* Glowing Anchor Beacon on the body */}
+                <div
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-all ${
+                    isActive ? "w-3 h-3 ring-2" : "w-2 h-2 opacity-80"
+                  }`}
+                  style={{
+                    backgroundColor: accentColor,
+                    boxShadow: isActive ? `0 0 10px ${accentColor}` : undefined,
+                  }}
+                />
+                {isActive && (
+                  <div
+                    className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border animate-ping opacity-60"
+                    style={{ borderColor: accentColor }}
+                  />
+                )}
+
+                {/* Angled SVG Leader Line */}
+                <svg
+                  className="absolute overflow-visible pointer-events-none"
+                  style={{ left: 0, top: 0, width: 1, height: 1 }}
+                >
+                  <path
+                    d={`M 0 0 L ${sys.line.elbowX} ${sys.line.elbowY} L ${sys.line.endX} ${sys.line.endY}`}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={isActive ? 2 : 1.25}
+                    strokeDasharray={isActive ? "none" : "3 2"}
                     style={{
-                      backgroundColor: isDark ? sys.darkColor : sys.color,
+                      filter: isActive
+                        ? `drop-shadow(0 0 4px ${accentColor})`
+                        : "none",
+                      transition: "all 0.3s ease",
                     }}
                   />
-                  <span className="text-xs font-semibold">{sys.label}</span>
-                </div>
-                <span className="text-xs font-bold font-mono">
-                  {val.toFixed(1)}%
-                </span>
-              </div>
+                  <circle
+                    cx={sys.line.elbowX}
+                    cy={sys.line.elbowY}
+                    r={isActive ? 2.5 : 2}
+                    fill={strokeColor}
+                  />
+                  <circle
+                    cx={sys.line.endX}
+                    cy={sys.line.endY}
+                    r={isActive ? 3 : 2}
+                    fill={accentColor}
+                  />
+                </svg>
 
-              {/* Clean proportional progress bar */}
-              <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                {/* Floating Telemetry Card connecting directly to SystemTelemetryIndicator */}
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${sys.barColor}`}
-                  style={{ width: `${Math.max(0, Math.min(100, val))}%` }}
-                />
+                  style={{
+                    position: "absolute",
+                    left: `${sys.line.endX}px`,
+                    top: `${sys.line.endY}px`,
+                    transform:
+                      sys.line.side === "left"
+                        ? "translate(-100%, -50%)"
+                        : "translate(0%, -50%)",
+                  }}
+                  className="pointer-events-auto"
+                >
+                  <SystemTelemetryIndicator
+                    systemInfo={systemInfo}
+                    healthValue={val}
+                    currentDay={currentDay}
+                    description={description}
+                    isSelected={isSelected}
+                    isHovered={isHovered}
+                    onSelectSystem={(id) =>
+                      onSelectSystem(isSelected ? null : id)
+                    }
+                    onClose={() => onSelectSystem(null)}
+                    theme={theme}
+                  />
+                </div>
               </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+            </Html>
+          </group>
+        );
+      })}
+    </group>
   );
 };
 

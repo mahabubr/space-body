@@ -36,17 +36,17 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
       ? mission.timePoints[2] || "post-flight"
       : mission.timePoints[1] || "in-flight";
 
-  // Auto-playback simulation loop
+  // Auto-playback simulation loop stepping strictly through specified intervals
   useEffect(() => {
-    if (isPlaying) {
-      const step = maxDay > 100 ? 2 : 1;
-      const intervalMs = maxDay > 100 ? 50 : maxDay > 10 ? 90 : 350;
-
+    if (isPlaying && intervals && intervals.length > 0) {
       timerRef.current = window.setInterval(() => {
-        onSelectDay(
-          currentDay >= maxDay ? 0 : Math.min(maxDay, currentDay + step)
-        );
-      }, intervalMs);
+        const currentIndex = intervals.findIndex((int) => int.day === currentDay);
+        const nextIndex =
+          currentIndex === -1 || currentIndex >= intervals.length - 1
+            ? 0
+            : currentIndex + 1;
+        onSelectDay(intervals[nextIndex].day);
+      }, 1200);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -57,7 +57,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
         clearInterval(timerRef.current);
       }
     };
-  }, [isPlaying, currentDay, maxDay, onSelectDay]);
+  }, [isPlaying, currentDay, intervals, onSelectDay]);
 
   return (
     <div
@@ -128,14 +128,24 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           )}
         </button>
 
-        {/* Continuous Slider Track */}
+        {/* Interval-Snapped Slider Track */}
         <input
           type="range"
           min={0}
-          max={maxDay}
+          max={Math.max(0, intervals.length - 1)}
           step={1}
-          value={currentDay}
-          onChange={(e) => onSelectDay(Number(e.target.value))}
+          value={Math.max(
+            0,
+            intervals.findIndex((int) => int.day === currentDay) !== -1
+              ? intervals.findIndex((int) => int.day === currentDay)
+              : 0
+          )}
+          onChange={(e) => {
+            const index = Number(e.target.value);
+            if (intervals[index]) {
+              onSelectDay(intervals[index].day);
+            }
+          }}
           className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-sky-500 bg-slate-200 dark:bg-slate-800 focus:outline-none"
         />
       </div>

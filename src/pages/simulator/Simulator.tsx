@@ -12,14 +12,11 @@ import {
 } from "../../components/human/internal/system-data";
 import {
   HEALTH_DATA,
-  getHealthForDay,
   type MissionData,
 } from "../../../health-data";
-import MissionHeader from "./components/MissionHeader";
 import HealthIndicatorsPanel from "./components/HealthIndicatorsPanel";
 import TimelineSlider from "./components/TimelineSlider";
 import HealthTelemetryChart from "./components/HealthTelemetryChart";
-import SystemTelemetryIndicator from "./components/SystemTelemetryIndicator";
 
 // -------------------------------------------------------------------
 // CAMERA CONTROLLER
@@ -71,12 +68,11 @@ const Simulator: React.FC = () => {
   const [currentDay, setCurrentDay] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [showChart, setShowChart] = useState<boolean>(false);
-  const [showHud, setShowHud] = useState<boolean>(true);
 
   // 3D Anatomy State
   const [selectedSystem, setSelectedSystem] = useState<SystemId | null>(null);
   const [hoveredSystem, setHoveredSystem] = useState<SystemId | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const viewMode: ViewMode = "split";
   const [theme, setTheme] = useState<"studio" | "dark">("dark");
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
@@ -87,30 +83,24 @@ const Simulator: React.FC = () => {
     setIsPlaying(false);
   };
 
-  // Dynamically calculate live health percentages for current day
+  // Health metrics strictly determined by specified mission interval
   const currentHealthValues = useMemo(() => {
-    return getHealthForDay(selectedMission, currentDay);
-  }, [selectedMission, currentDay]);
-
-  // Active anatomical system from selection or hover (system-data.ts)
-  const activeSystem = selectedSystem || hoveredSystem;
-  const systemInfo = activeSystem ? SYSTEMS_DATA[activeSystem] : null;
-
-  const activeOrganHealth = useMemo(() => {
-    if (!activeSystem) return null;
-    switch (activeSystem) {
-      case "eyes":
-        return currentHealthValues.eye;
-      case "muscles":
-        return currentHealthValues.muscle;
-      case "bones":
-        return currentHealthValues.bones;
-      case "brain":
-        return currentHealthValues.brain;
-      default:
-        return null;
+    const intervals = selectedMission.intervals;
+    if (!intervals || intervals.length === 0) {
+      return { eye: 100, muscle: 100, bones: 100, brain: 100 };
     }
-  }, [activeSystem, currentHealthValues]);
+    const match = intervals.find((int) => int.day === currentDay);
+    if (match) return match.health;
+
+    // Use closest prior interval
+    let active = intervals[0];
+    for (const int of intervals) {
+      if (int.day <= currentDay) {
+        active = int;
+      }
+    }
+    return active.health;
+  }, [selectedMission, currentDay]);
 
   return (
     <div
@@ -121,9 +111,9 @@ const Simulator: React.FC = () => {
       }`}
     >
       {/* ----------------- TOP NAVBAR & CONTROLS ----------------- */}
-      <div className="absolute top-4 left-5 right-5 z-20 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
-        {/* Left: Home, Mission Selector & System Dropdown */}
-        <div className="flex flex-wrap items-center gap-2.5 pointer-events-auto">
+      <div className="absolute top-4 left-5 right-5 z-20 flex flex-wrap items-start justify-between gap-3 pointer-events-none">
+        {/* Left: Home, Mission Selector & Anatomy System List */}
+        <div className="flex flex-col items-start gap-2.5 pointer-events-auto w-52 max-w-[90vw]">
           <Link
             to="/"
             className={`px-3 py-2 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
@@ -148,109 +138,142 @@ const Simulator: React.FC = () => {
             Home
           </Link>
 
-          {/* Mission Selection Component */}
-          <MissionHeader
-            missions={HEALTH_DATA}
-            selectedMission={selectedMission}
-            onSelectMission={handleSelectMission}
-            theme={theme}
-          />
-
-          {/* 5-Option Dropdown: Full Body, Bones, Muscle, Brain, Eye */}
-          <select
-            value={selectedSystem || ""}
-            onChange={(e) =>
-              setSelectedSystem(
-                e.target.value ? (e.target.value as SystemId) : null
-              )
-            }
-            className={`rounded-xl px-3.5 py-2 text-xs font-semibold tracking-wide backdrop-blur-md border outline-none cursor-pointer pr-8 shadow-sm transition-all ${
+          {/* Left Vertical Selection Panel: All selecting options in lists */}
+          <div
+            className={`w-full rounded-2xl backdrop-blur-xl border p-2.5 shadow-xl transition-all ${
               theme === "studio"
-                ? "bg-white/95 text-slate-800 border-slate-300 hover:border-sky-500 focus:border-sky-600 focus:ring-1 focus:ring-sky-500"
-                : "bg-slate-950/85 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 focus:border-cyan-300 focus:ring-1 focus:ring-cyan-400"
+                ? "bg-white/90 border-slate-200 text-slate-800 shadow-slate-300/40"
+                : "bg-slate-950/85 border-slate-800 text-slate-100 shadow-cyan-950/30"
             }`}
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%230284c7'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right 0.65rem center",
-              backgroundSize: "0.9rem 0.9rem",
-            }}
           >
-            <option value="">Full Body</option>
-            <option value="bones">Bones</option>
-            <option value="muscles">Muscle</option>
-            <option value="brain">Brain</option>
-            <option value="eyes">Eye</option>
-          </select>
+            {/* Mission Dataset Section */}
+            <div className="pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-800/80">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block mb-1.5 px-1">
+                Mission Dataset
+              </span>
+              <ul className="space-y-1">
+                {HEALTH_DATA.map((m) => {
+                  const isSelected = selectedMission.id === m.id;
+                  return (
+                    <li key={m.id}>
+                      <button
+                        onClick={() => handleSelectMission(m)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? theme === "studio"
+                              ? "bg-sky-50 border-sky-400 text-sky-700 shadow-sm"
+                              : "bg-slate-800/90 border-cyan-400 text-cyan-300 shadow-sm ring-1 ring-cyan-400/40"
+                            : theme === "studio"
+                            ? "bg-slate-50/70 border-slate-200/60 hover:border-slate-300 text-slate-700"
+                            : "bg-slate-900/40 border-slate-800/60 hover:border-slate-700 text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="truncate">{m.name}</span>
+                          {isSelected && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 font-normal">
+                          {m.destination} • {m.durationDays}d
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
-          {selectedSystem && (
-            <button
-              onClick={() => setSelectedSystem(null)}
-              className="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl shadow-md transition-colors"
-            >
-              Reset View
-            </button>
-          )}
+            {/* Anatomy Focus System Selection List */}
+            <div>
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                  Anatomy Focus
+                </span>
+                {selectedSystem && (
+                  <button
+                    onClick={() => setSelectedSystem(null)}
+                    className="text-[10px] font-mono text-sky-600 dark:text-cyan-400 hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              <ul className="space-y-1">
+                {(
+                  [
+                    { id: null, label: "Full Body", color: "#64748b" },
+                    { id: "bones", label: "Bones", color: "#d97706" },
+                    { id: "muscles", label: "Muscle", color: "#be185d" },
+                    { id: "brain", label: "Brain", color: "#9333ea" },
+                    { id: "eyes", label: "Eye", color: "#0284c7" },
+                  ] as const
+                ).map((item) => {
+                  const isSelected = selectedSystem === item.id;
+                  const isHovered = hoveredSystem === item.id;
+
+                  return (
+                    <li key={item.label}>
+                      <button
+                        onClick={() =>
+                          setSelectedSystem(
+                            isSelected && item.id !== null ? null : item.id
+                          )
+                        }
+                        onMouseEnter={() =>
+                          item.id && setHoveredSystem(item.id)
+                        }
+                        onMouseLeave={() =>
+                          item.id && setHoveredSystem(null)
+                        }
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between border ${
+                          isSelected
+                            ? theme === "studio"
+                              ? "bg-sky-50 border-sky-400 text-sky-700 shadow-sm"
+                              : "bg-slate-800/90 border-cyan-400 text-cyan-300 shadow-sm ring-1 ring-cyan-400/40"
+                            : isHovered
+                            ? theme === "studio"
+                              ? "bg-slate-100 border-slate-300 text-slate-900"
+                              : "bg-slate-900 border-slate-700 text-slate-200"
+                            : theme === "studio"
+                            ? "bg-slate-50/70 border-slate-200/60 hover:border-slate-300 text-slate-700"
+                            : "bg-slate-900/40 border-slate-800/60 hover:border-slate-700 text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span>{item.label}</span>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-sky-600 dark:text-cyan-400">
+                            Active
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* Top-Right: View Mode Options, Telemetry Toggle & Theme Toggle */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Toggle HUD Panel */}
-          <button
-            onClick={() => setShowHud(!showHud)}
-            className={`px-3 py-2 rounded-xl text-xs font-medium backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
-              showHud
-                ? "bg-sky-600 text-white border-sky-600"
-                : theme === "studio"
-                ? "bg-white/90 text-slate-700 border-slate-300 hover:bg-slate-100"
-                : "bg-slate-900/80 text-slate-200 border-slate-700 hover:bg-slate-800"
-            }`}
-            title="Toggle health indicators"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            <span className="hidden sm:inline">Telemetry</span>
-          </button>
-
-          {/* 4 View Mode Buttons */}
+          {/* View: Split Anatomy */}
           <div
-            className={`flex items-center rounded-xl p-0.5 border shadow-sm backdrop-blur-md ${
+            className={`px-3 py-2 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-sm ${
               theme === "studio"
-                ? "bg-white/90 border-slate-300 text-slate-700"
-                : "bg-slate-900/80 border-slate-700 text-slate-300"
+                ? "bg-white/90 text-sky-700 border-slate-300"
+                : "bg-slate-900/80 text-cyan-300 border-cyan-500/30"
             }`}
           >
-            {(
-              [
-                { id: "split", label: "Split Anatomy" },
-                { id: "muscles", label: "Muscles" },
-                { id: "skeleton", label: "Skeleton" },
-                { id: "layered", label: "Layered" },
-              ] as const
-            ).map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setViewMode(mode.id)}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  viewMode === mode.id
-                    ? "bg-sky-600 text-white font-semibold shadow-sm"
-                    : "hover:bg-slate-200/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
+            <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block shadow-[0_0_6px_#22d3ee]" />
+            <span>Split Anatomy</span>
           </div>
 
           {/* Theme Toggle */}
@@ -277,36 +300,7 @@ const Simulator: React.FC = () => {
         </div>
       </div>
 
-      {/* ----------------- LEFT FLOATING HUD: HEALTH SYSTEMS INDICATORS ----------------- */}
-      {showHud && (
-        <div className="absolute top-20 left-5 z-20 pointer-events-auto animate-in fade-in slide-in-from-left-4 duration-300">
-          <HealthIndicatorsPanel
-            healthValues={currentHealthValues}
-            selectedSystem={selectedSystem}
-            onSelectSystem={setSelectedSystem}
-            hoveredSystem={hoveredSystem}
-            onHoverSystem={setHoveredSystem}
-            theme={theme}
-          />
-        </div>
-      )}
 
-      {/* ----------------- RIGHT FLOATING HUD: SYSTEM TELEMETRY INDICATOR (system-data.ts) ----------------- */}
-      {showHud && (
-        <div className="absolute top-20 right-5 z-20 pointer-events-auto animate-in fade-in slide-in-from-right-4 duration-300">
-          <SystemTelemetryIndicator
-            systemInfo={systemInfo}
-            healthValue={activeOrganHealth}
-            currentDay={currentDay}
-            onClose={() => {
-              setSelectedSystem(null);
-              setHoveredSystem(null);
-            }}
-            onSelectSystem={setSelectedSystem}
-            theme={theme}
-          />
-        </div>
-      )}
 
       {/* ----------------- BOTTOM CONTROLS: TIMELINE SLIDER & DEGRADATION CHART ----------------- */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5 w-[92%] max-w-xl pointer-events-auto">
@@ -432,6 +426,18 @@ const Simulator: React.FC = () => {
           onSelectSystem={setSelectedSystem}
           onHoverSystem={setHoveredSystem}
           healthValues={currentHealthValues}
+        />
+
+        {/* ----------------- 3D FLOATING HEALTH INDICATORS CONNECTED TO BODY (ALWAYS ON) ----------------- */}
+        <HealthIndicatorsPanel
+          healthValues={currentHealthValues}
+          selectedMission={selectedMission}
+          currentDay={currentDay}
+          selectedSystem={selectedSystem}
+          onSelectSystem={setSelectedSystem}
+          hoveredSystem={hoveredSystem}
+          onHoverSystem={setHoveredSystem}
+          theme={theme}
         />
 
         {/* Orbit Controls (Full 360 Rotation, Zoom, Pan) */}
