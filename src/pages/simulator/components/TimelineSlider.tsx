@@ -9,7 +9,6 @@ interface TimelineSliderProps {
   onTogglePlay: () => void;
   showChart: boolean;
   onToggleChart: () => void;
-  theme: "studio" | "dark";
 }
 
 export const TimelineSlider: React.FC<TimelineSliderProps> = ({
@@ -20,9 +19,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   onTogglePlay,
   showChart,
   onToggleChart,
-  theme,
 }) => {
-  const isDark = theme === "dark";
   const timerRef = useRef<number | null>(null);
 
   const maxDay = Math.max(1, mission.durationDays);
@@ -39,12 +36,18 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
     if (isPlaying && intervals && intervals.length > 0) {
       timerRef.current = window.setInterval(() => {
         const currentIndex = intervals.findIndex((int) => int.day === currentDay);
-        const nextIndex =
-          currentIndex === -1 || currentIndex >= intervals.length - 1
-            ? 0
-            : currentIndex + 1;
-        onSelectDay(intervals[nextIndex].day);
-      }, 1200);
+        if (currentIndex !== -1) {
+          const nextIndex = (currentIndex + 1) % intervals.length;
+          onSelectDay(intervals[nextIndex].day);
+        } else {
+          const nextInterval = intervals.find((int) => int.day > currentDay);
+          if (nextInterval) {
+            onSelectDay(nextInterval.day);
+          } else {
+            onSelectDay(intervals[0].day);
+          }
+        }
+      }, 1600);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -58,19 +61,13 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   }, [isPlaying, currentDay, intervals, onSelectDay]);
 
   return (
-    <div
-      className={`rounded-2xl backdrop-blur-xl border p-3.5 shadow-2xl transition-all duration-300 w-full max-w-xl ${
-        isDark
-          ? "bg-slate-950/85 border-slate-800 text-slate-100 shadow-cyan-950/30"
-          : "bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/40"
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/60 dark:border-slate-800/80">
+    <div className="rounded-2xl backdrop-blur-xl border border-slate-800/90 bg-slate-950/85 text-slate-100 shadow-[0_0_30px_rgba(2,132,199,0.15)] p-3.5 transition-all duration-300 w-full max-w-xl">
+      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800/80">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono font-semibold text-sky-600 dark:text-cyan-400">
+          <span className="text-xs font-mono font-semibold text-cyan-400">
             Day {currentDay} of {maxDay}
           </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 uppercase">
             {currentTimePoint}
           </span>
         </div>
@@ -79,10 +76,8 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           onClick={onToggleChart}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
             showChart
-              ? "bg-sky-600 text-white border-sky-600 shadow-sm"
-              : isDark
-              ? "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
-              : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+              ? "bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+              : "bg-slate-900/90 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
           }`}
         >
           <svg
@@ -107,8 +102,8 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
           onClick={onTogglePlay}
           className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold transition-all shadow-sm shrink-0 ${
             isPlaying
-              ? "bg-amber-500 hover:bg-amber-400 text-slate-950"
-              : "bg-sky-600 hover:bg-sky-500 text-white"
+              ? "bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+              : "bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
           }`}
           title={isPlaying ? "Pause simulation" : "Play timeline"}
         >
@@ -140,12 +135,12 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
               onSelectDay(intervals[index].day);
             }
           }}
-          className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-sky-500 bg-slate-200 dark:bg-slate-800 focus:outline-none"
+          className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-cyan-400 bg-slate-800 focus:outline-none"
         />
       </div>
 
-      <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
-        <span className="text-[10px] font-mono text-slate-400 mr-1">
+      <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80">
+        <span className="text-[10px] font-mono text-slate-400 mr-1 uppercase font-semibold">
           Intervals:
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -155,12 +150,10 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
               <button
                 key={int.day}
                 onClick={() => onSelectDay(int.day)}
-                className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-mono transition-all border ${
                   isActive
-                    ? "bg-sky-600 text-white font-bold shadow-sm"
-                    : isDark
-                    ? "bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700"
-                    : "bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200"
+                    ? "bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
+                    : "bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white"
                 }`}
               >
                 Day {int.day}

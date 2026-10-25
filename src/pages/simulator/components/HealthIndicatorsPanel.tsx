@@ -14,7 +14,6 @@ interface HealthIndicatorsPanelProps {
   onSelectSystem: (system: SystemId | null) => void;
   hoveredSystem: SystemId | null;
   onHoverSystem: (system: SystemId | null) => void;
-  theme: "studio" | "dark";
 }
 
 interface SystemIndicatorConfig {
@@ -104,10 +103,7 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
   onSelectSystem,
   hoveredSystem,
   onHoverSystem,
-  theme,
 }) => {
-  const isDark = theme === "dark";
-
   return (
     <group name="health-indicators-group">
       {SYSTEMS_CONFIG.map((sys) => {
@@ -115,7 +111,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
         const val = healthValues[sys.key] ?? 100;
         const isSelected = selectedSystem === sys.id;
         const isHovered = hoveredSystem === sys.id;
-        const isActive = isSelected || isHovered;
 
         const description = selectedMission.description
           ? sys.id === "eyes"
@@ -127,33 +122,37 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
             : selectedMission.description.brain
           : null;
 
-        const strokeColor = isActive
-          ? isDark
-            ? sys.darkColor
-            : sys.color
-          : isDark
-          ? "rgba(148, 163, 184, 0.45)"
-          : "rgba(100, 116, 139, 0.45)";
+        const isOptimal = val >= 98;
+        const isAdapting = val >= 93 && val < 98;
+        const statusColor = isOptimal
+          ? "#10b981" // Emerald: 100% High Health / Nominal
+          : isAdapting
+          ? "#f59e0b" // Amber: Adapting
+          : "#f43f5e"; // Rose: Critical Loss
 
-        const accentColor = isDark ? sys.darkColor : sys.color;
+        const strokeColor = isSelected
+          ? statusColor
+          : isHovered
+          ? "rgba(148, 163, 184, 0.75)"
+          : "rgba(148, 163, 184, 0.35)";
 
         return (
           <group key={sys.id} position={sys.anchor}>
             <mesh>
-              <sphereGeometry args={[0.007, 16, 16]} />
+              <sphereGeometry args={[0.0075, 16, 16]} />
               <meshBasicMaterial
-                color={accentColor}
+                color={statusColor}
                 transparent
-                opacity={isActive ? 1.0 : 0.75}
+                opacity={isSelected ? 1.0 : isHovered ? 0.95 : 0.82}
               />
             </mesh>
-            {isActive && (
+            {isSelected && (
               <mesh>
-                <ringGeometry args={[0.012, 0.015, 24]} />
+                <ringGeometry args={[0.012, 0.0145, 24]} />
                 <meshBasicMaterial
-                  color={accentColor}
+                  color={statusColor}
                   transparent
-                  opacity={0.8}
+                  opacity={0.85}
                   side={THREE.DoubleSide}
                 />
               </mesh>
@@ -171,17 +170,19 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
               >
                 <div
                   className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-all ${
-                    isActive ? "w-3 h-3 ring-2" : "w-2 h-2 opacity-80"
+                    isSelected ? "w-2.5 h-2.5 ring-2 ring-white/60" : "w-2 h-2 opacity-90"
                   }`}
                   style={{
-                    backgroundColor: accentColor,
-                    boxShadow: isActive ? `0 0 10px ${accentColor}` : undefined,
+                    backgroundColor: statusColor,
+                    boxShadow: isSelected
+                      ? `0 0 8px ${statusColor}`
+                      : `0 0 4px ${statusColor}88`,
                   }}
                 />
-                {isActive && (
+                {isSelected && (
                   <div
-                    className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border animate-ping opacity-60"
-                    style={{ borderColor: accentColor }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border opacity-70"
+                    style={{ borderColor: statusColor }}
                   />
                 )}
 
@@ -193,11 +194,11 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                     d={`M 0 0 L ${sys.line.elbowX} ${sys.line.elbowY} L ${sys.line.endX} ${sys.line.endY}`}
                     fill="none"
                     stroke={strokeColor}
-                    strokeWidth={isActive ? 2 : 1.25}
-                    strokeDasharray={isActive ? "none" : "3 2"}
+                    strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1.25}
+                    strokeDasharray={isSelected ? "none" : "3 2"}
                     style={{
-                      filter: isActive
-                        ? `drop-shadow(0 0 4px ${accentColor})`
+                      filter: isSelected
+                        ? `drop-shadow(0 0 4px ${statusColor})`
                         : "none",
                       transition: "all 0.3s ease",
                     }}
@@ -205,14 +206,14 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                   <circle
                     cx={sys.line.elbowX}
                     cy={sys.line.elbowY}
-                    r={isActive ? 2.5 : 2}
+                    r={isSelected ? 2.5 : 2}
                     fill={strokeColor}
                   />
                   <circle
                     cx={sys.line.endX}
                     cy={sys.line.endY}
-                    r={isActive ? 3 : 2}
-                    fill={accentColor}
+                    r={isSelected ? 3 : 2}
+                    fill={statusColor}
                   />
                 </svg>
 
@@ -239,7 +240,6 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
                       onSelectSystem(isSelected ? null : id)
                     }
                     onClose={() => onSelectSystem(null)}
-                    theme={theme}
                   />
                 </div>
               </div>

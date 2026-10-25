@@ -131,7 +131,24 @@ export const HEALTH_DATA: MissionData[] = [
           brain: 97,
         },
       },
+      {
+        day: 320,
+        health: {
+          eye: 93,
+          muscle: 76,
+          bones: 91,
+          brain: 94,
+        },
+      },
+      {
+        day: 380,
+        health: {
+          eye: 100,
+          muscle: 100,
+          bones: 100,
+          brain: 100,
+        },
+      },
     ],
   },
 ];
-

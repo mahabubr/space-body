@@ -8,7 +8,6 @@ interface HealthTelemetryChartProps {
   onSelectDay: (day: number) => void;
   selectedSystem: SystemId | null;
   onSelectSystem: (system: SystemId | null) => void;
-  theme: "studio" | "dark";
 }
 
 const SYSTEMS = ["eye", "muscle", "bones", "brain"] as const;
@@ -56,7 +55,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
   onSelectDay,
   selectedSystem,
   onSelectSystem,
-  theme,
 }) => {
   const maxDay = Math.max(1, mission.durationDays);
 
@@ -110,7 +108,6 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
   }, [mission, getX, getY]);
 
   const currentX = getX(currentDay);
-  const isDark = theme === "dark";
 
   return (
     <div className="w-full select-none">
@@ -123,7 +120,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
         </span>
       </div>
 
-      <div className="relative overflow-hidden rounded-xl bg-black/5 dark:bg-black/30 p-2 border border-slate-200/50 dark:border-slate-800/60">
+      <div className="relative overflow-hidden rounded-xl bg-black/40 p-2 border border-slate-800/80">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-auto cursor-crosshair overflow-visible"
@@ -136,8 +133,15 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
               Math.min(width - padding.right, normalizedX)
             );
             const ratio = (boundedX - padding.left) / chartW;
-            const targetDay = Math.round(ratio * maxDay);
-            onSelectDay(targetDay);
+            const targetDay = ratio * maxDay;
+            if (mission.intervals && mission.intervals.length > 0) {
+              const closestInterval = mission.intervals.reduce((prev, curr) =>
+                Math.abs(curr.day - targetDay) < Math.abs(prev.day - targetDay)
+                  ? curr
+                  : prev
+              );
+              onSelectDay(closestInterval.day);
+            }
           }}
         >
           {[100, 95, 90, 85].map((yTick) => {
@@ -150,7 +154,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke={isDark ? "#334155" : "#e2e8f0"}
+                  stroke="#334155"
                   strokeDasharray="3 3"
                   strokeWidth="1"
                 />
@@ -159,7 +163,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y={y + 3}
                   textAnchor="end"
                   fontSize="9"
-                  fill={isDark ? "#94a3b8" : "#64748b"}
+                  fill="#94a3b8"
                   fontFamily="monospace"
                 >
                   {yTick}%
@@ -177,7 +181,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y1={padding.top}
                   x2={x}
                   y2={height - padding.bottom}
-                  stroke={isDark ? "#1e293b" : "#f1f5f9"}
+                  stroke="#1e293b"
                   strokeWidth="1"
                 />
                 <text
@@ -185,7 +189,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y={height - padding.bottom + 14}
                   textAnchor="middle"
                   fontSize="9"
-                  fill={isDark ? "#94a3b8" : "#64748b"}
+                  fill="#94a3b8"
                   fontFamily="monospace"
                 >
                   D{int.day}
@@ -197,7 +201,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
           {paths.map(({ sys, d, points, config }) => {
             const isSystemSelected =
               selectedSystem === config.systemId || selectedSystem === null;
-            const strokeColor = isDark ? config.darkColor : config.color;
+            const strokeColor = config.darkColor;
 
             return (
               <g
@@ -221,7 +225,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                     cx={pt.x}
                     cy={pt.y}
                     r={selectedSystem === config.systemId ? "3.5" : "2.5"}
-                    fill={isDark ? "#0f172a" : "#ffffff"}
+                    fill="#0f172a"
                     stroke={strokeColor}
                     strokeWidth="2"
                     className="cursor-pointer hover:scale-125 transition-transform"
@@ -241,7 +245,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             y1={padding.top - 4}
             x2={currentX}
             y2={height - padding.bottom + 4}
-            stroke={isDark ? "#38bdf8" : "#0284c7"}
+            stroke="#38bdf8"
             strokeWidth="2"
             strokeDasharray="2 2"
           />
@@ -249,17 +253,17 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             cx={currentX}
             cy={padding.top - 4}
             r="4"
-            fill={isDark ? "#38bdf8" : "#0284c7"}
+            fill="#38bdf8"
             className="animate-pulse"
           />
         </svg>
 
-        <div className="flex flex-wrap items-center justify-between gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 mt-2 pt-2 border-t border-slate-800/80">
           <div className="flex flex-wrap items-center gap-2">
             {SYSTEMS.map((sys) => {
               const cfg = SYSTEM_CONFIG[sys];
               const isSelected = selectedSystem === cfg.systemId;
-              const color = isDark ? cfg.darkColor : cfg.color;
+              const color = cfg.darkColor;
 
               return (
                 <button
@@ -269,8 +273,8 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   }
                   className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-medium transition-all ${
                     isSelected
-                      ? "bg-slate-200 dark:bg-slate-800 ring-1 ring-sky-500 shadow-sm"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-800/50 opacity-75"
+                      ? "bg-slate-800 text-cyan-300 ring-1 ring-cyan-500 shadow-sm"
+                      : "text-slate-300 hover:bg-slate-800/50 opacity-75"
                   }`}
                 >
                   <span
@@ -286,7 +290,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
           {selectedSystem && (
             <button
               onClick={() => onSelectSystem(null)}
-              className="text-[10px] font-mono text-sky-600 dark:text-cyan-400 hover:underline"
+              className="text-[10px] font-mono text-cyan-400 hover:underline"
             >
               Reset Filter
             </button>
