@@ -28,7 +28,7 @@ export interface EcorcheModelProps {
 
 export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   selectedSystem = null,
-  hoveredSystem: _hoveredSystem = null,
+  hoveredSystem = null,
   viewMode = "split",
   onSelectSystem,
   onHoverSystem,
@@ -36,11 +36,17 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   healthValues = null,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const breathingAssemblyRef = useRef<THREE.Group>(null);
+  const holoScannerRef = useRef<THREE.Group>(null);
   const brainPulseRef = useRef<THREE.Group>(null);
   const brainRingRef = useRef<THREE.Mesh>(null);
   const eyeGlobeRef = useRef<THREE.Group>(null);
   const eyeReticleRef = useRef<THREE.Group>(null);
   const opticNerveRef = useRef<THREE.Group>(null);
+
+  // Day-based diagnostic transition sweep & recalibration
+  const prevTargetHealth = useRef<number>(100);
+  const transitionWave = useRef<number>(1.0);
 
   // Smooth real-time animated health metrics for interval changes
   const animatedHealth = useRef<{
@@ -76,11 +82,13 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   const scleraTexture = useMemo(() => getScleraTexture(), []);
 
   const materials = useRef<{
-    boneMat: THREE.MeshStandardMaterial;
+    boneMat: THREE.MeshPhysicalMaterial;
+    weightBearingBoneMat: THREE.MeshPhysicalMaterial;
     skullCapMat: THREE.MeshPhysicalMaterial;
-    muscleMat: THREE.MeshStandardMaterial;
-    tendonMat: THREE.MeshStandardMaterial;
-    cortexMat: THREE.MeshStandardMaterial;
+    muscleMat: THREE.MeshPhysicalMaterial;
+    posturalMuscleMat: THREE.MeshPhysicalMaterial;
+    tendonMat: THREE.MeshPhysicalMaterial;
+    cortexMat: THREE.MeshPhysicalMaterial;
     arteryMat: THREE.MeshStandardMaterial;
     cerebellumMat: THREE.MeshStandardMaterial;
     stemMat: THREE.MeshStandardMaterial;
@@ -93,10 +101,30 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
   if (!materials.current) {
     materials.current = {
-      boneMat: new THREE.MeshStandardMaterial({
+      // Non-weight-bearing bones (cranium, ribs, upper limbs) - maintain baseline density
+      boneMat: new THREE.MeshPhysicalMaterial({
         color: new THREE.Color("#faf6ee"),
-        roughness: 0.35,
-        metalness: 0.02,
+        roughness: 0.28,
+        metalness: 0.04,
+        clearcoat: 0.3,
+        clearcoatRoughness: 0.25,
+        sheen: 0.22,
+        sheenColor: new THREE.Color("#f1f5f9"),
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#fbbf24"),
+        emissiveIntensity: 0.0,
+      }),
+      // Weight-bearing bones (femur, pelvis, lumbar spine, calcaneus) - undergo space osteopenia
+      weightBearingBoneMat: new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#faf6ee"),
+        roughness: 0.28,
+        metalness: 0.04,
+        clearcoat: 0.32,
+        clearcoatRoughness: 0.25,
+        sheen: 0.25,
+        sheenColor: new THREE.Color("#f1f5f9"),
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
         clipShadows: true,
@@ -105,10 +133,13 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }),
       skullCapMat: new THREE.MeshPhysicalMaterial({
         color: new THREE.Color("#faf6ee"),
-        roughness: 0.18,
-        metalness: 0.04,
+        roughness: 0.14,
+        metalness: 0.02,
+        transmission: 0.88,
         transparent: true,
-        opacity: 0.26,
+        opacity: 0.28,
+        ior: 1.48,
+        thickness: 0.5,
         depthWrite: false,
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
@@ -116,31 +147,59 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         emissive: new THREE.Color("#fbbf24"),
         emissiveIntensity: 0.0,
       }),
-      muscleMat: new THREE.MeshStandardMaterial({
+      // Upper-body non-postural muscles (deltoids, pectorals, arms) - preserve tone
+      muscleMat: new THREE.MeshPhysicalMaterial({
         color: new THREE.Color("#b91c1c"),
-        roughness: 0.35,
-        metalness: 0.02,
+        roughness: 0.26,
+        metalness: 0.06,
+        clearcoat: 0.45,
+        clearcoatRoughness: 0.2,
+        sheen: 0.65,
+        sheenColor: new THREE.Color("#fb7185"),
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [muscleClipPlane] : [],
         clipShadows: true,
         emissive: new THREE.Color("#dc2626"),
         emissiveIntensity: 0.0,
       }),
-      tendonMat: new THREE.MeshStandardMaterial({
+      // Antigravity postural muscles (calves, thighs, gluteals, erector spinae) - suffer rapid disuse atrophy
+      posturalMuscleMat: new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#b91c1c"),
+        roughness: 0.26,
+        metalness: 0.06,
+        clearcoat: 0.45,
+        clearcoatRoughness: 0.2,
+        sheen: 0.65,
+        sheenColor: new THREE.Color("#fb7185"),
+        side: THREE.DoubleSide,
+        clippingPlanes: viewMode === "split" ? [muscleClipPlane] : [],
+        clipShadows: true,
+        emissive: new THREE.Color("#dc2626"),
+        emissiveIntensity: 0.0,
+      }),
+      tendonMat: new THREE.MeshPhysicalMaterial({
         color: new THREE.Color("#f8fafc"),
-        roughness: 0.28,
+        roughness: 0.22,
         metalness: 0.03,
+        clearcoat: 0.55,
+        clearcoatRoughness: 0.2,
+        sheen: 0.4,
+        sheenColor: new THREE.Color("#ffffff"),
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [muscleClipPlane] : [],
         clipShadows: true,
         emissive: new THREE.Color("#dc2626"),
         emissiveIntensity: 0.0,
       }),
-      cortexMat: new THREE.MeshStandardMaterial({
+      cortexMat: new THREE.MeshPhysicalMaterial({
         map: brainTexture,
         color: new THREE.Color("#fca5a5"),
-        roughness: 0.32,
+        roughness: 0.3,
         metalness: 0.04,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.25,
+        sheen: 0.35,
+        sheenColor: new THREE.Color("#f472b6"),
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
         emissive: new THREE.Color("#ec4899"),
@@ -148,8 +207,8 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }),
       arteryMat: new THREE.MeshStandardMaterial({
         color: new THREE.Color("#dc2626"),
-        roughness: 0.24,
-        metalness: 0.06,
+        roughness: 0.22,
+        metalness: 0.08,
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
         emissive: new THREE.Color("#ef4444"),
@@ -157,7 +216,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }),
       cerebellumMat: new THREE.MeshStandardMaterial({
         color: new THREE.Color("#fb7185"),
-        roughness: 0.35,
+        roughness: 0.34,
         metalness: 0.04,
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
@@ -175,7 +234,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }),
       nerveMat: new THREE.MeshStandardMaterial({
         color: new THREE.Color("#fef08a"),
-        roughness: 0.30,
+        roughness: 0.3,
         metalness: 0.02,
         side: THREE.DoubleSide,
         clippingPlanes: viewMode === "split" ? [skeletonClipPlane] : [],
@@ -192,7 +251,7 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }),
       scleraMat: new THREE.MeshStandardMaterial({
         map: scleraTexture,
-        roughness: 0.20,
+        roughness: 0.2,
         metalness: 0.02,
       }),
       lensMat: new THREE.MeshPhysicalMaterial({
@@ -215,8 +274,10 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
   const {
     boneMat,
+    weightBearingBoneMat,
     skullCapMat,
     muscleMat,
+    posturalMuscleMat,
     tendonMat,
     cortexMat,
     arteryMat,
@@ -234,59 +295,81 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
     if (viewMode === "split") {
       boneMat.clippingPlanes = [skeletonClipPlane];
+      weightBearingBoneMat.clippingPlanes = [skeletonClipPlane];
       skullCapMat.clippingPlanes = [skeletonClipPlane];
       muscleMat.clippingPlanes = [muscleClipPlane];
+      posturalMuscleMat.clippingPlanes = [muscleClipPlane];
       tendonMat.clippingPlanes = [muscleClipPlane];
       brainMats.forEach((m) => {
         m.clippingPlanes = [skeletonClipPlane];
       });
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
+      weightBearingBoneMat.transparent = false;
+      weightBearingBoneMat.opacity = 1.0;
       muscleMat.transparent = false;
       muscleMat.opacity = 1.0;
+      posturalMuscleMat.transparent = false;
+      posturalMuscleMat.opacity = 1.0;
       tendonMat.transparent = false;
       tendonMat.opacity = 1.0;
     } else if (viewMode === "muscles") {
       boneMat.clippingPlanes = [];
+      weightBearingBoneMat.clippingPlanes = [];
       skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
+      posturalMuscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       brainMats.forEach((m) => {
         m.clippingPlanes = [];
       });
       muscleMat.transparent = false;
       muscleMat.opacity = 1.0;
+      posturalMuscleMat.transparent = false;
+      posturalMuscleMat.opacity = 1.0;
       tendonMat.transparent = false;
       tendonMat.opacity = 1.0;
     } else if (viewMode === "skeleton") {
       boneMat.clippingPlanes = [];
+      weightBearingBoneMat.clippingPlanes = [];
       skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
+      posturalMuscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       brainMats.forEach((m) => {
         m.clippingPlanes = [];
       });
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
+      weightBearingBoneMat.transparent = false;
+      weightBearingBoneMat.opacity = 1.0;
     } else if (viewMode === "layered") {
       boneMat.clippingPlanes = [];
+      weightBearingBoneMat.clippingPlanes = [];
       skullCapMat.clippingPlanes = [];
       muscleMat.clippingPlanes = [];
+      posturalMuscleMat.clippingPlanes = [];
       tendonMat.clippingPlanes = [];
       brainMats.forEach((m) => {
         m.clippingPlanes = [];
       });
       boneMat.transparent = false;
       boneMat.opacity = 1.0;
+      weightBearingBoneMat.transparent = false;
+      weightBearingBoneMat.opacity = 1.0;
       muscleMat.transparent = true;
       muscleMat.opacity = 0.58;
+      posturalMuscleMat.transparent = true;
+      posturalMuscleMat.opacity = 0.58;
       tendonMat.transparent = true;
       tendonMat.opacity = 0.58;
     }
 
     boneMat.needsUpdate = true;
+    weightBearingBoneMat.needsUpdate = true;
     skullCapMat.needsUpdate = true;
     muscleMat.needsUpdate = true;
+    posturalMuscleMat.needsUpdate = true;
     tendonMat.needsUpdate = true;
     brainMats.forEach((m) => {
       m.needsUpdate = true;
@@ -296,8 +379,10 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     skeletonClipPlane,
     muscleClipPlane,
     boneMat,
+    weightBearingBoneMat,
     skullCapMat,
     muscleMat,
+    posturalMuscleMat,
     tendonMat,
     cortexMat,
     arteryMat,
@@ -311,16 +396,42 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     clone.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
         const name = (child.name || "").toLowerCase();
-        // Calvarial bones (parietal and frontal calvaria) receive a translucent window to expose the brain inside
         const isCalvaria =
           name.includes("parietal") || name.includes("frontal");
-        (child as THREE.Mesh).material = isCalvaria ? skullCapMat : boneMat;
+        const isWeightBearing =
+          name.includes("femur") ||
+          name.includes("tibia") ||
+          name.includes("calcaneus") ||
+          name.includes("hip") ||
+          name.includes("pelvis") ||
+          name.includes("ilium") ||
+          name.includes("ischium") ||
+          name.includes("sacrum") ||
+          name.includes("vertebra") ||
+          name.includes("lumbar");
+        const isSpine =
+          name.includes("vertebra") ||
+          name.includes("lumbar") ||
+          name.includes("thoracic");
+
+        if (isCalvaria) {
+          (child as THREE.Mesh).material = skullCapMat;
+        } else if (isWeightBearing) {
+          (child as THREE.Mesh).material = weightBearingBoneMat;
+          if (isSpine) {
+            child.userData.isSpine = true;
+            child.userData.baseScale = child.scale.clone();
+          }
+        } else {
+          (child as THREE.Mesh).material = boneMat;
+        }
+
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
     return clone;
-  }, [skeletonGLTF.scene, boneMat, skullCapMat]);
+  }, [skeletonGLTF.scene, boneMat, weightBearingBoneMat, skullCapMat]);
 
   const anatomyScene = useMemo(() => {
     const clone = anatomyGLTF.scene.clone(true);
@@ -342,13 +453,35 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           name.includes("membrane") ||
           name.includes("fascia");
 
-        (child as THREE.Mesh).material = isTendon ? tendonMat : muscleMat;
+        const isPostural =
+          name.includes("soleus") ||
+          name.includes("gastrocnemius") ||
+          name.includes("rectus femoris") ||
+          name.includes("vastus") ||
+          name.includes("quadriceps") ||
+          name.includes("gluteus") ||
+          name.includes("longissimus") ||
+          name.includes("iliocostalis") ||
+          name.includes("erector") ||
+          name.includes("semitendinosus") ||
+          name.includes("biceps femoris");
+
+        if (isTendon) {
+          (child as THREE.Mesh).material = tendonMat;
+        } else if (isPostural) {
+          (child as THREE.Mesh).material = posturalMuscleMat;
+          child.userData.isPostural = true;
+          child.userData.baseScale = child.scale.clone();
+        } else {
+          (child as THREE.Mesh).material = muscleMat;
+        }
+
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
     return clone;
-  }, [anatomyGLTF.scene, muscleMat, tendonMat]);
+  }, [anatomyGLTF.scene, muscleMat, posturalMuscleMat, tendonMat]);
 
   const brainScene = useMemo(() => {
     const clone = brainGLTF.scene.clone(true);
@@ -407,20 +540,61 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
   useFrame((state, delta) => {
     const time = state.clock.getElapsedTime();
 
+    // Damped microgravity weightless drift (steadies when zoomed into specific system)
     if (!disableFloat && groupRef.current) {
-      groupRef.current.position.y = Math.sin(time * 0.8) * 0.006;
+      const floatDamp = selectedSystem ? 0.2 : 1.0;
+      groupRef.current.position.y = Math.sin(time * 0.75) * 0.007 * floatDamp;
+      groupRef.current.rotation.y = Math.sin(time * 0.32) * 0.005 * floatDamp;
+      groupRef.current.rotation.z = Math.cos(time * 0.45) * 0.0025 * floatDamp;
     }
 
-    // Selection state driving focused anatomical highlights
-    const isBonesSelected = selectedSystem === "bones";
-    const isMusclesSelected = selectedSystem === "muscles";
-    const isBrainSelected = selectedSystem === "brain";
-    const isEyesSelected = selectedSystem === "eyes";
+    // Subtle organic thoracic respiratory cycle (~15 breaths per minute)
+    if (breathingAssemblyRef.current) {
+      const breath = 1.0 + Math.sin(time * 1.57) * 0.0035;
+      breathingAssemblyRef.current.scale.set(breath, 1.0, breath);
+    }
 
     const targetBone = healthValues ? healthValues.bones : 100;
     const targetMuscle = healthValues ? healthValues.muscle : 100;
     const targetBrain = healthValues ? healthValues.brain : 100;
     const targetEye = healthValues ? healthValues.eye : 100;
+
+    // Day change transition detection: trigger upward diagnostic laser scan wave
+    const currentSum = targetBone + targetMuscle + targetBrain + targetEye;
+    if (Math.abs(currentSum - prevTargetHealth.current) > 0.05) {
+      prevTargetHealth.current = currentSum;
+      transitionWave.current = 0.0;
+    }
+
+    if (transitionWave.current < 1.0) {
+      transitionWave.current = Math.min(1.0, transitionWave.current + delta * 2.2);
+    }
+
+    // Holographic bio-telemetry vertical scanner beam
+    if (holoScannerRef.current) {
+      if (transitionWave.current < 1.0) {
+        // Diagnostic recalibration sweep on day change
+        const scanY = -0.92 + transitionWave.current * 1.84;
+        holoScannerRef.current.position.y = scanY;
+        holoScannerRef.current.rotation.y = time * 2.0;
+      } else {
+        // Continuous ambient space scan
+        const scanY = Math.sin(time * 0.85) * 0.88;
+        holoScannerRef.current.position.y = scanY;
+        holoScannerRef.current.rotation.y = time * 0.25;
+      }
+    }
+
+    // Selection and hover states driving focused anatomical highlights
+    const isBonesSelected = selectedSystem === "bones";
+    const isMusclesSelected = selectedSystem === "muscles";
+    const isBrainSelected = selectedSystem === "brain";
+    const isEyesSelected = selectedSystem === "eyes";
+
+    const isBonesHovered = hoveredSystem === "bones";
+    const isMusclesHovered = hoveredSystem === "muscles";
+    const isBrainHovered = hoveredSystem === "brain";
+    const isEyesHovered = hoveredSystem === "eyes";
 
     // Responsive real-time lerp when interval changes so the user visibly watches transition
     const lerpFactor = 1.0 - Math.exp(-delta * 6.5);
@@ -456,74 +630,127 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const brainLoss = Math.max(0, 100 - brainVal);
     const eyeLoss = Math.max(0, 100 - eyeVal);
 
-    // 1. SKELETAL SYSTEM (Bone Demineralization & Osteopenia)
-    // NASA ISS data: ~1.0%/month bone mineral loss in hips/spine -> 5.0% by Day 180
+    // 1. SKELETAL SYSTEM (Region-specific Bone Demineralization & Osteopenia)
+    // Non-weight-bearing bones (cranium, ribs, arms, clavicle) preserve ivory density!
+    boneMat.color.set("#faf6ee");
+    boneMat.roughness = 0.28;
+    boneMat.clearcoat = 0.30;
+    const boneSelectionEmissive = isBonesSelected ? 0.25 : isBonesHovered ? 0.08 : 0.0;
+    boneMat.emissive.set(isBonesSelected || isBonesHovered ? "#fbbf24" : "#000000");
+    boneMat.emissiveIntensity = boneSelectionEmissive;
+
+    // Weight-bearing bones (pelvis, hips, femur, tibia, spine) suffer space osteopenia:
     const normBoneLoss = Math.min(1.0, boneLoss / 5.0);
 
     if (normBoneLoss > 0.01) {
-      // Chalky porous demineralization visible on bone surface
-      boneMat.color.lerpColors(
+      // Chalky calcium leaching (preserves bone ivory appearance, never muddy/dark)
+      weightBearingBoneMat.color.lerpColors(
         new THREE.Color("#faf6ee"),
-        new THREE.Color("#9c9484"),
+        new THREE.Color("#ede7dc"),
         normBoneLoss
       );
-      boneMat.roughness = 0.35 + normBoneLoss * 0.28;
-      skullCapMat.color.copy(boneMat.color);
-      skullCapMat.roughness = boneMat.roughness;
+      // Trabecular micro-porosity develops
+      weightBearingBoneMat.roughness = 0.28 + normBoneLoss * 0.32;
+      weightBearingBoneMat.clearcoat = 0.32 * (1.0 - normBoneLoss * 0.8);
     } else {
-      // 100% High Health / Nominal Earth Baseline
-      boneMat.color.set("#faf6ee");
-      boneMat.roughness = 0.35;
-      skullCapMat.color.set("#faf6ee");
-      skullCapMat.roughness = 0.18;
+      weightBearingBoneMat.color.set("#faf6ee");
+      weightBearingBoneMat.roughness = 0.28;
+      weightBearingBoneMat.clearcoat = 0.32;
     }
 
-    // Calm emissive: NO emissive glow on hover! Only gentle highlight on explicit selection
-    const boneSelectionEmissive = isBonesSelected ? 0.22 : 0.0;
-    boneMat.emissive.set(isBonesSelected ? "#fbbf24" : "#000000");
-    boneMat.emissiveIntensity = boneSelectionEmissive;
-    skullCapMat.emissive.copy(boneMat.emissive);
-    skullCapMat.emissiveIntensity = boneSelectionEmissive * 0.5;
+    // Demineralization stress heatmap: weight-bearing skeletal areas radiate subtle amber luminescence
+    const bmdStressGlow = normBoneLoss * 0.16;
+    const weightBoneEmissive = isBonesSelected ? 0.28 : isBonesHovered ? 0.10 : bmdStressGlow;
+    weightBearingBoneMat.emissive.set(isBonesSelected || isBonesHovered || normBoneLoss > 0.03 ? "#fbbf24" : "#000000");
+    weightBearingBoneMat.emissiveIntensity = weightBoneEmissive;
+    skullCapMat.emissive.copy(weightBearingBoneMat.emissive);
+    skullCapMat.emissiveIntensity = weightBoneEmissive * 0.4;
 
-    // 2. MUSCULAR SYSTEM (Postural Atrophy & Microgravity Tone Loss)
-    // NASA ISS data: Up to 14.0% postural muscle mass/tone loss by Day 180
+    // Physical Spinal Disc Decompression (Microgravity Spinal Elongation)
+    skeletonScene.traverse((child) => {
+      if (child.userData.isSpine && child.userData.baseScale) {
+        const spineElongation = 1.0 + normBoneLoss * 0.018; // up to 1.8% vertical elongation
+        child.scale.set(
+          child.userData.baseScale.x,
+          child.userData.baseScale.y * spineElongation,
+          child.userData.baseScale.z
+        );
+      }
+    });
+
+    // 2. MUSCULAR SYSTEM (Region-specific Postural Antigravity Atrophy)
+    // Upper-body muscles (deltoids, pectorals, arms) remain oxygenated firm baseline crimson!
+    muscleMat.color.set("#b91c1c");
+    muscleMat.roughness = 0.26;
+    muscleMat.clearcoat = 0.45;
+    muscleMat.sheenColor.set("#fb7185");
+    const muscleSelectionEmissive = isMusclesSelected ? 0.25 : isMusclesHovered ? 0.08 : 0.0;
+    muscleMat.emissive.set(isMusclesSelected || isMusclesHovered ? "#f43f5e" : "#000000");
+    muscleMat.emissiveIntensity = muscleSelectionEmissive;
+
+    // Postural antigravity muscles (calves, thighs, gluteals, erector spinae) suffer disuse atrophy:
     const normMuscleLoss = Math.min(1.0, muscleLoss / 14.0);
 
     if (normMuscleLoss > 0.01) {
-      // Transition from oxygenated crimson to atrophic deeper microgravity tone
-      muscleMat.color.lerpColors(
+      // Oxygenated crimson shifts to atrophic desaturated tissue tone
+      posturalMuscleMat.color.lerpColors(
         new THREE.Color("#b91c1c"),
-        new THREE.Color("#441616"),
+        new THREE.Color("#98343c"),
         normMuscleLoss
       );
-      muscleMat.roughness = 0.35 + normMuscleLoss * 0.30;
+      // Loss of muscle tone firmness and hydration gloss
+      posturalMuscleMat.roughness = 0.26 + normMuscleLoss * 0.22;
+      posturalMuscleMat.clearcoat = 0.45 * (1.0 - normMuscleLoss * 0.65);
+      posturalMuscleMat.sheenColor.lerpColors(
+        new THREE.Color("#fb7185"),
+        new THREE.Color("#fca5a5"),
+        normMuscleLoss
+      );
     } else {
-      // 100% High Health / Nominal Earth Baseline
-      muscleMat.color.set("#b91c1c");
-      muscleMat.roughness = 0.35;
+      posturalMuscleMat.color.set("#b91c1c");
+      posturalMuscleMat.roughness = 0.26;
+      posturalMuscleMat.clearcoat = 0.45;
+      posturalMuscleMat.sheenColor.set("#fb7185");
     }
 
-    // Calm emissive: NO emissive glow on hover! Only gentle highlight on explicit selection
-    const muscleSelectionEmissive = isMusclesSelected ? 0.22 : 0.0;
-    muscleMat.emissive.set(isMusclesSelected ? "#f43f5e" : "#000000");
-    muscleMat.emissiveIntensity = muscleSelectionEmissive;
-    tendonMat.emissive.copy(muscleMat.emissive);
-    tendonMat.emissiveIntensity = muscleSelectionEmissive * 0.4;
+    // Atrophy strain diagnostic glow
+    const muscleAtrophyGlow = normMuscleLoss * 0.14;
+    const posturalMuscleEmissive = isMusclesSelected ? 0.28 : isMusclesHovered ? 0.10 : muscleAtrophyGlow;
+    posturalMuscleMat.emissive.set(isMusclesSelected || isMusclesHovered || normMuscleLoss > 0.03 ? "#f43f5e" : "#000000");
+    posturalMuscleMat.emissiveIntensity = posturalMuscleEmissive;
+    tendonMat.emissive.copy(posturalMuscleMat.emissive);
+    tendonMat.emissiveIntensity = posturalMuscleEmissive * 0.35;
+
+    // Physical Muscular Atrophy Volume Morphing (Cross-Sectional Area Loss in legs/back)
+    anatomyScene.traverse((child) => {
+      if (child.userData.isPostural && child.userData.baseScale) {
+        const shrinkXZ = 1.0 - normMuscleLoss * 0.085; // up to ~8.5% cross-sectional narrowing
+        child.scale.set(
+          child.userData.baseScale.x * shrinkXZ,
+          child.userData.baseScale.y,
+          child.userData.baseScale.z * shrinkXZ
+        );
+      }
+    });
 
     // 3. CENTRAL NERVOUS SYSTEM (Brain Cephalic Fluid Shift & ICP Pulsation)
     const normBrainLoss = Math.min(1.0, brainLoss / 4.0);
-    const fluidShiftRate = 1.6 + normBrainLoss * 1.4;
+    const fluidShiftRate = 1.6 + normBrainLoss * 1.5;
     const icpWave = Math.sin(time * fluidShiftRate);
-    const fluidExpansion = normBrainLoss * 0.038;
+    const fluidExpansion = normBrainLoss * 0.045; // Real 3D cranial expansion!
     const pulseDilation =
-      fluidExpansion + icpWave * (0.006 + normBrainLoss * 0.010);
+      fluidExpansion + icpWave * (0.006 + normBrainLoss * 0.012);
 
     if (brainPulseRef.current) {
       const s = 1.0 + pulseDilation;
       brainPulseRef.current.scale.set(s, s, s);
+      // Subtle upward cephalic shift toward vertex
+      brainPulseRef.current.position.y = 0.816 + normBrainLoss * 0.0035;
     }
 
-    // Dynamic brain clipping: in split view, brain is clipped to skeleton side unless selected
+    // Cardiac arterial pulse cycle (72 bpm systolic pulse with heightened stroke volume under high ICP)
+    const heartPulse = Math.pow(Math.max(0, Math.sin(time * 3.8)), 8) * (0.22 + normBrainLoss * 0.25);
+
     const brainMats = [cortexMat, arteryMat, cerebellumMat, stemMat, nerveMat];
     if (viewMode === "split") {
       const activeClipping = isBrainSelected ? [] : [skeletonClipPlane];
@@ -535,7 +762,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }
     }
 
-    // Calm neural ring: only activates when explicitly selected
     if (brainRingRef.current) {
       if (isBrainSelected) {
         brainRingRef.current.visible = true;
@@ -545,35 +771,38 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       }
     }
 
-    // Skull cap and face muscle opacity: only softens on explicit selection, never on hover
     if (isBrainSelected) {
       skullCapMat.opacity = 0.08;
       if (viewMode === "split") {
         muscleMat.opacity = 0.38;
         muscleMat.transparent = true;
+        posturalMuscleMat.opacity = 0.38;
+        posturalMuscleMat.transparent = true;
         tendonMat.opacity = 0.38;
         tendonMat.transparent = true;
       }
       cortexMat.emissive.set("#ec4899");
       cortexMat.emissiveIntensity = 0.35;
       arteryMat.emissive.set("#ef4444");
-      arteryMat.emissiveIntensity = 0.30;
+      arteryMat.emissiveIntensity = 0.35 + heartPulse;
       cerebellumMat.emissiveIntensity = 0.25;
       stemMat.emissiveIntensity = 0.18;
     } else {
-      skullCapMat.opacity = 0.26;
+      skullCapMat.opacity = 0.28;
       if (viewMode === "split") {
         muscleMat.opacity = 1.0;
         muscleMat.transparent = false;
+        posturalMuscleMat.opacity = 1.0;
+        posturalMuscleMat.transparent = false;
         tendonMat.opacity = 1.0;
         tendonMat.transparent = false;
       }
-      // Calm emissive: subtle natural cerebral luminescence without hover spikes
+      const brainHoverEmissive = isBrainHovered ? 0.12 : 0.0;
       cortexMat.emissive.set("#ec4899");
-      cortexMat.emissiveIntensity = 0.04 + normBrainLoss * 0.12;
+      cortexMat.emissiveIntensity = 0.04 + normBrainLoss * 0.12 + brainHoverEmissive;
       arteryMat.emissive.set("#ef4444");
-      arteryMat.emissiveIntensity = 0.08 + normBrainLoss * 0.16;
-      cerebellumMat.emissiveIntensity = 0.03 + normBrainLoss * 0.10;
+      arteryMat.emissiveIntensity = 0.08 + normBrainLoss * 0.18 + heartPulse;
+      cerebellumMat.emissiveIntensity = 0.03 + normBrainLoss * 0.10 + brainHoverEmissive;
       stemMat.emissiveIntensity = 0.02;
     }
 
@@ -582,8 +811,8 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 
     if (eyeGlobeRef.current) {
       // SANS posterior globe flattening from retrobulbar pressure
-      const flatZ = 1.0 - normEyeLoss * 0.15;
-      const flatXY = 1.0 + normEyeLoss * 0.05;
+      const flatZ = 1.0 - normEyeLoss * 0.16;
+      const flatXY = 1.0 + normEyeLoss * 0.06;
       eyeGlobeRef.current.scale.set(flatXY, flatXY, flatZ);
     }
 
@@ -593,21 +822,21 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
       opticNerveRef.current.scale.set(onsdDilation, onsdDilation, 1.0);
     }
 
-    // Eye reticle: only displays when selected, never on casual hover
     if (isEyesSelected) {
       irisMat.emissive.set("#0284c7");
-      irisMat.emissiveIntensity = 0.30;
+      irisMat.emissiveIntensity = 0.32;
       opticNerveMat.emissive.set("#38bdf8");
-      opticNerveMat.emissiveIntensity = 0.30;
+      opticNerveMat.emissiveIntensity = 0.32;
       if (eyeReticleRef.current) {
         eyeReticleRef.current.visible = true;
         eyeReticleRef.current.rotation.z = time * 0.9;
       }
     } else {
+      const eyeHoverEmissive = isEyesHovered ? 0.12 : 0.0;
       irisMat.emissive.set("#0284c7");
-      irisMat.emissiveIntensity = 0.0;
+      irisMat.emissiveIntensity = eyeHoverEmissive;
       opticNerveMat.emissive.set("#ec4899");
-      opticNerveMat.emissiveIntensity = normEyeLoss * 0.16;
+      opticNerveMat.emissiveIntensity = normEyeLoss * 0.18 + eyeHoverEmissive;
       if (eyeReticleRef.current) {
         eyeReticleRef.current.visible = false;
       }
@@ -648,32 +877,71 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
         />
       </mesh>
 
-      {/* Main 3D Skeleton & Muscle Anatomical Assemblies (100% Locked Alignment) */}
-      <group
-        rotation={[-Math.PI / 2, 0, 0]}
-        scale={[0.0010546, 0.0010546, 0.0010546]}
-      >
-        <group position={[0, 109.02, -782.9]}>
-          {viewMode !== "muscles" && (
-            <primitive
-              object={skeletonScene}
-              position={[0, 0, 0]}
-              onClick={handleClick("bones")}
-              onPointerOver={handlePointerOver("bones")}
-              onPointerOut={handlePointerOut()}
-            />
-          )}
+      {/* Main 3D Skeleton & Muscle Anatomical Assemblies (with subtle respiratory dynamics) */}
+      <group ref={breathingAssemblyRef}>
+        <group
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[0.0010546, 0.0010546, 0.0010546]}
+        >
+          <group position={[0, 109.02, -782.9]}>
+            {viewMode !== "muscles" && (
+              <primitive
+                object={skeletonScene}
+                position={[0, 0, 0]}
+                onClick={handleClick("bones")}
+                onPointerOver={handlePointerOver("bones")}
+                onPointerOut={handlePointerOut()}
+              />
+            )}
 
-          {viewMode !== "skeleton" && (
-            <primitive
-              object={anatomyScene}
-              position={[0, 0, 0]}
-              onClick={handleClick("muscles")}
-              onPointerOver={handlePointerOver("muscles")}
-              onPointerOut={handlePointerOut()}
-            />
-          )}
+            {viewMode !== "skeleton" && (
+              <primitive
+                object={anatomyScene}
+                position={[0, 0, 0]}
+                onClick={handleClick("muscles")}
+                onPointerOver={handlePointerOver("muscles")}
+                onPointerOut={handlePointerOut()}
+              />
+            )}
+          </group>
         </group>
+      </group>
+
+      {/* Holographic Bio-Scanning Wave & Emitter Slice */}
+      <group ref={holoScannerRef} position={[0, 0, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.75, 0.38]} />
+          <meshBasicMaterial
+            color="#22d3ee"
+            transparent
+            opacity={0.08}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.31, 0.316, 64]} />
+          <meshBasicMaterial
+            color="#38bdf8"
+            transparent
+            opacity={0.55}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.15, 0.154, 48]} />
+          <meshBasicMaterial
+            color="#06b6d4"
+            transparent
+            opacity={0.3}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
       </group>
 
       {/* Anatomical Central Nervous System (Brain Vault: Real 3D Cerebrum, Cerebellum, Brainstem & Vasculature) */}

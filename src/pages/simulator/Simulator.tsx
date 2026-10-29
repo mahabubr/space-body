@@ -51,6 +51,159 @@ const CameraController: React.FC<CameraControllerProps> = ({
   return null;
 };
 
+// High-Fidelity Earth Horizon with Multi-Layer Atmospheric Scattering
+const EarthHorizon: React.FC = () => {
+  const earthRef = useRef<THREE.Group>(null);
+
+  useFrame((_, delta) => {
+    if (earthRef.current) {
+      earthRef.current.rotation.y += delta * 0.005;
+    }
+  });
+
+  return (
+    <group ref={earthRef} position={[0, -26.0, -8.0]}>
+      {/* Planetary Ocean Body */}
+      <mesh>
+        <sphereGeometry args={[25, 64, 48]} />
+        <meshStandardMaterial
+          color="#041226"
+          roughness={0.8}
+          metalness={0.08}
+        />
+      </mesh>
+
+      {/* Earth Surface Curvature Layer */}
+      <mesh scale={[1.001, 1.001, 1.001]}>
+        <sphereGeometry args={[25, 64, 48]} />
+        <meshStandardMaterial
+          color="#0b2344"
+          roughness={0.88}
+          metalness={0.04}
+          transparent
+          opacity={0.65}
+        />
+      </mesh>
+
+      {/* Atmospheric Airglow Inner Ring (Troposphere/Stratosphere) */}
+      <mesh scale={[1.0035, 1.0035, 1.0035]}>
+        <sphereGeometry args={[25, 64, 48]} />
+        <meshBasicMaterial
+          color="#38bdf8"
+          transparent
+          opacity={0.35}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Mesospheric / Thermospheric Blue Horizon Limb */}
+      <mesh scale={[1.012, 1.012, 1.012]}>
+        <sphereGeometry args={[25, 64, 48]} />
+        <meshBasicMaterial
+          color="#0284c7"
+          transparent
+          opacity={0.2}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Diffuse Exospheric Rayleigh Scattering Glow */}
+      <mesh scale={[1.028, 1.028, 1.028]}>
+        <sphereGeometry args={[25, 64, 48]} />
+        <meshBasicMaterial
+          color="#0369a1"
+          transparent
+          opacity={0.1}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+};
+
+// Dynamic Holographic Telemetry Orbital Platform
+const OrbitalPlatform: React.FC = () => {
+  const outerRingRef = useRef<THREE.Mesh>(null);
+  const midRingRef = useRef<THREE.Mesh>(null);
+  const radarSweepRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    const time = state.clock.getElapsedTime();
+    if (outerRingRef.current) {
+      outerRingRef.current.rotation.z = time * 0.035;
+    }
+    if (midRingRef.current) {
+      midRingRef.current.rotation.z = -time * 0.06;
+    }
+    if (radarSweepRef.current) {
+      radarSweepRef.current.rotation.z = time * 0.4;
+    }
+  });
+
+  return (
+    <group position={[0, -0.918, 0]}>
+      {/* Outer compass degree ring */}
+      <mesh ref={outerRingRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.92, 0.926, 64]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.28} />
+      </mesh>
+
+      {/* Counter-rotating mid ring */}
+      <mesh ref={midRingRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.62, 0.625, 48]} />
+        <meshBasicMaterial color="#0284c7" transparent opacity={0.22} />
+      </mesh>
+
+      {/* Inner bio-telemetry focal ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.32, 0.324, 48]} />
+        <meshBasicMaterial color="#06b6d4" transparent opacity={0.32} />
+      </mesh>
+
+      {/* Center pedestal glow disc */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.31, 32]} />
+        <meshBasicMaterial
+          color="#0369a1"
+          transparent
+          opacity={0.07}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Coordinate crosshair axes */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.9, 0.0016]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.18} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+        <planeGeometry args={[1.9, 0.0016]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.18} />
+      </mesh>
+
+      {/* Rotating radar sweep ray */}
+      <group ref={radarSweepRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0.45, 0, 0]}>
+          <planeGeometry args={[0.9, 0.002]} />
+          <meshBasicMaterial
+            color="#22d3ee"
+            transparent
+            opacity={0.25}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      </group>
+    </group>
+  );
+};
+
 const Simulator: React.FC = () => {
   const [selectedMission, setSelectedMission] = useState<MissionData>(
     HEALTH_DATA[0]
@@ -348,83 +501,63 @@ const Simulator: React.FC = () => {
           speed={0.4}
         />
 
+        {/* Dual-Tier NASA Cosmic Starfield */}
+        <Stars
+          radius={85}
+          depth={60}
+          count={2200}
+          factor={3.5}
+          saturation={0}
+          fade
+          speed={0.25}
+        />
+        <Stars
+          radius={45}
+          depth={25}
+          count={450}
+          factor={4.5}
+          saturation={0.4}
+          fade
+          speed={0.15}
+        />
+
         {/* Microgravity Space Ambient Floating Particles */}
         <Sparkles
-          count={55}
-          scale={[2.6, 3.4, 2.6]}
-          size={1.6}
+          count={70}
+          scale={[2.8, 3.6, 2.8]}
+          size={1.8}
           speed={0.25}
-          opacity={0.32}
+          opacity={0.35}
           color="#38bdf8"
         />
 
-        {/* Distant Earth Horizon Atmospheric Rim (Low Earth Orbit view) */}
-        <group position={[0, -23.4, -6.0]}>
-          <mesh>
-            <sphereGeometry args={[22, 64, 48]} />
-            <meshStandardMaterial
-              color="#051329"
-              roughness={0.92}
-              metalness={0.05}
-            />
-          </mesh>
-          {/* Earth Atmospheric Glow Arc */}
-          <mesh scale={[1.004, 1.004, 1.004]}>
-            <sphereGeometry args={[22, 64, 48]} />
-            <meshBasicMaterial
-              color="#0284c7"
-              transparent
-              opacity={0.15}
-              side={THREE.BackSide}
-            />
-          </mesh>
-        </group>
+        {/* Planetary Horizon with Multi-Layer Atmospheric Limb */}
+        <EarthHorizon />
 
-        {/* Minimalist Holographic Telemetry Orbital Platform */}
-        <group position={[0, -0.918, 0]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.26, 0.262, 64]} />
-            <meshBasicMaterial color="#38bdf8" transparent opacity={0.25} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.54, 0.542, 64]} />
-            <meshBasicMaterial color="#0284c7" transparent opacity={0.16} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.82, 0.822, 64]} />
-            <meshBasicMaterial color="#0369a1" transparent opacity={0.10} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[1.7, 0.0012]} />
-            <meshBasicMaterial color="#0284c7" transparent opacity={0.12} />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-            <planeGeometry args={[1.7, 0.0012]} />
-            <meshBasicMaterial color="#0284c7" transparent opacity={0.12} />
-          </mesh>
-        </group>
+        {/* Dynamic Holographic Telemetry Orbital Platform */}
+        <OrbitalPlatform />
 
-        {/* Space Lighting: Direct Space Sunlight + Oceanic Earth-Shine Fill */}
-        <ambientLight intensity={0.55} color="#0c1728" />
+        {/* Space Lighting: Key Sunlight + Oceanic Earth-Shine + Dual Cyan Rim Lights */}
+        <ambientLight intensity={0.5} color="#081220" />
         <directionalLight
-          position={[3.2, 4.2, 3.0]}
-          intensity={1.9}
-          color="#fffef7"
+          position={[3.5, 4.5, 3.2]}
+          intensity={2.2}
+          color="#fffdfa"
         />
         <directionalLight
-          position={[-3.0, 1.2, 2.2]}
-          intensity={1.1}
+          position={[0, -3.5, 2.0]}
+          intensity={0.95}
+          color="#0ea5e9"
+        />
+        <directionalLight
+          position={[-3.8, 1.8, -2.8]}
+          intensity={2.2}
+          color="#22d3ee"
+        />
+        <directionalLight
+          position={[3.2, 2.2, -3.2]}
+          intensity={1.8}
           color="#38bdf8"
-        />
-        <directionalLight
-          position={[0, 4.0, -3.8]}
-          intensity={2.0}
-          color="#67e8f9"
-        />
-        <directionalLight
-          position={[0, -3.0, 1.2]}
-          intensity={0.35}
-          color="#082f49"
         />
 
         <CameraController

@@ -144,6 +144,25 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             }
           }}
         >
+          <defs>
+            {SYSTEMS.map((sys) => {
+              const cfg = SYSTEM_CONFIG[sys];
+              return (
+                <linearGradient
+                  key={sys}
+                  id={`area-grad-${sys}`}
+                  x1="0%"
+                  y1="0%"
+                  x2="0%"
+                  y2="100%"
+                >
+                  <stop offset="0%" stopColor={cfg.darkColor} stopOpacity="0.3" />
+                  <stop offset="100%" stopColor={cfg.darkColor} stopOpacity="0.0" />
+                </linearGradient>
+              );
+            })}
+          </defs>
+
           {[100, 95, 90, 85].map((yTick) => {
             if (yTick < minVal || yTick > maxVal) return null;
             const y = getY(yTick);
@@ -154,7 +173,7 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke="#334155"
+                  stroke="#1e293b"
                   strokeDasharray="3 3"
                   strokeWidth="1"
                 />
@@ -162,9 +181,9 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   x={padding.left - 6}
                   y={y + 3}
                   textAnchor="end"
-                  fontSize="9"
-                  fill="#94a3b8"
-                  fontFamily="monospace"
+                  fontSize="8.5"
+                  fill="#64748b"
+                  fontFamily="JetBrains Mono, monospace"
                 >
                   {yTick}%
                 </text>
@@ -181,16 +200,16 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
                   y1={padding.top}
                   x2={x}
                   y2={height - padding.bottom}
-                  stroke="#1e293b"
+                  stroke="#0f172a"
                   strokeWidth="1"
                 />
                 <text
                   x={x}
                   y={height - padding.bottom + 14}
                   textAnchor="middle"
-                  fontSize="9"
-                  fill="#94a3b8"
-                  fontFamily="monospace"
+                  fontSize="8.5"
+                  fill="#64748b"
+                  fontFamily="JetBrains Mono, monospace"
                 >
                   D{int.day}
                 </text>
@@ -203,32 +222,55 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
               selectedSystem === config.systemId || selectedSystem === null;
             const strokeColor = config.darkColor;
 
+            // Generate closed area path down to baseline
+            const firstPt = points[0];
+            const lastPt = points[points.length - 1];
+            const baselineY = getY(minVal);
+            const areaD = `${d} L ${lastPt.x} ${baselineY} L ${firstPt.x} ${baselineY} Z`;
+
             return (
               <g
                 key={sys}
-                opacity={isSystemSelected ? 1 : 0.25}
-                className="transition-opacity duration-200"
+                opacity={isSystemSelected ? 1 : 0.18}
+                className="transition-opacity duration-300"
               >
+                {/* Glowing under-curve area fill */}
+                <path
+                  d={areaD}
+                  fill={`url(#area-grad-${sys})`}
+                  style={{
+                    opacity: isSystemSelected ? 0.9 : 0.1,
+                  }}
+                />
+
+                {/* Main telemetry trajectory curve */}
                 <path
                   d={d}
                   fill="none"
                   stroke={strokeColor}
                   strokeWidth={
-                    selectedSystem === config.systemId ? "2.5" : "1.8"
+                    selectedSystem === config.systemId ? "2.5" : "1.6"
                   }
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  style={{
+                    filter: selectedSystem === config.systemId
+                      ? `drop-shadow(0 0 6px ${strokeColor})`
+                      : "none",
+                  }}
                 />
+
+                {/* Milestone data anchor points */}
                 {points.map((pt) => (
                   <circle
                     key={pt.day}
                     cx={pt.x}
                     cy={pt.y}
-                    r={selectedSystem === config.systemId ? "3.5" : "2.5"}
-                    fill="#0f172a"
+                    r={selectedSystem === config.systemId ? "3.5" : "2.2"}
+                    fill="#020617"
                     stroke={strokeColor}
-                    strokeWidth="2"
-                    className="cursor-pointer hover:scale-125 transition-transform"
+                    strokeWidth={selectedSystem === config.systemId ? "2.0" : "1.5"}
+                    className="cursor-pointer hover:scale-150 transition-transform"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectDay(pt.day);
@@ -240,21 +282,31 @@ export const HealthTelemetryChart: React.FC<HealthTelemetryChartProps> = ({
             );
           })}
 
+          {/* Real-time active day vertical scrubber line */}
           <line
             x1={currentX}
             y1={padding.top - 4}
             x2={currentX}
             y2={height - padding.bottom + 4}
             stroke="#38bdf8"
-            strokeWidth="2"
-            strokeDasharray="2 2"
+            strokeWidth="1.5"
+            strokeDasharray="3 2"
+            style={{ filter: "drop-shadow(0 0 4px #0284c7)" }}
           />
           <circle
             cx={currentX}
             cy={padding.top - 4}
-            r="4"
+            r="3.5"
             fill="#38bdf8"
-            className="animate-pulse"
+            className="animate-ping opacity-60"
+          />
+          <circle
+            cx={currentX}
+            cy={padding.top - 4}
+            r="3.5"
+            fill="#38bdf8"
+            stroke="#ffffff"
+            strokeWidth="1"
           />
         </svg>
 

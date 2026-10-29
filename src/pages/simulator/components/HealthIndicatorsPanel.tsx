@@ -20,6 +20,7 @@ interface SystemIndicatorConfig {
   id: SystemId;
   key: keyof HealthMetrics;
   label: string;
+  code: string;
   color: string;
   darkColor: string;
   anchor: [number, number, number];
@@ -37,6 +38,7 @@ const SYSTEMS_CONFIG: SystemIndicatorConfig[] = [
     id: "brain",
     key: "brain",
     label: "Brain / CNS",
+    code: "CNS-01",
     color: "#9333ea",
     darkColor: "#c084fc",
     anchor: [0.0, 0.816, -0.016],
@@ -52,6 +54,7 @@ const SYSTEMS_CONFIG: SystemIndicatorConfig[] = [
     id: "eyes",
     key: "eye",
     label: "Visual System (SANS)",
+    code: "SANS-02",
     color: "#0284c7",
     darkColor: "#38bdf8",
     anchor: [0.0265, 0.776, 0.046],
@@ -67,6 +70,7 @@ const SYSTEMS_CONFIG: SystemIndicatorConfig[] = [
     id: "bones",
     key: "bones",
     label: "Skeletal System",
+    code: "SKL-03",
     color: "#d97706",
     darkColor: "#fbbf24",
     anchor: [-0.095, -0.19, -0.03],
@@ -82,6 +86,7 @@ const SYSTEMS_CONFIG: SystemIndicatorConfig[] = [
     id: "muscles",
     key: "muscle",
     label: "Muscular System",
+    code: "MUS-04",
     color: "#be185d",
     darkColor: "#f43f5e",
     anchor: [0.095, -0.1, 0.03],
@@ -133,11 +138,12 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
         const strokeColor = isSelected
           ? statusColor
           : isHovered
-          ? "rgba(148, 163, 184, 0.75)"
+          ? "rgba(56, 189, 248, 0.85)"
           : "rgba(148, 163, 184, 0.35)";
 
         return (
           <group key={sys.id} position={sys.anchor}>
+            {/* 3D Anchor Glow Nodes */}
             <mesh>
               <sphereGeometry args={[0.0075, 16, 16]} />
               <meshBasicMaterial
@@ -162,61 +168,103 @@ export const HealthIndicatorsPanel: React.FC<HealthIndicatorsPanelProps> = ({
               <div
                 className={`relative pointer-events-none select-none transition-opacity duration-300 ${
                   selectedSystem && !isSelected && !isHovered
-                    ? "opacity-40 hover:opacity-100"
+                    ? "opacity-30 hover:opacity-100"
                     : "opacity-100"
                 }`}
                 onMouseEnter={() => onHoverSystem(sys.id)}
                 onMouseLeave={() => onHoverSystem(null)}
               >
+                {/* 2D Anchor beacon on body */}
                 <div
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-all ${
-                    isSelected ? "w-2.5 h-2.5 ring-2 ring-white/60" : "w-2 h-2 opacity-90"
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-300 ${
+                    isSelected ? "w-3 h-3 ring-2 ring-white/90" : "w-2.5 h-2.5 opacity-90"
                   }`}
                   style={{
                     backgroundColor: statusColor,
                     boxShadow: isSelected
-                      ? `0 0 8px ${statusColor}`
-                      : `0 0 4px ${statusColor}88`,
+                      ? `0 0 12px ${statusColor}`
+                      : `0 0 6px ${statusColor}aa`,
                   }}
                 />
-                {isSelected && (
-                  <div
-                    className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border opacity-70"
-                    style={{ borderColor: statusColor }}
-                  />
-                )}
+                {/* Sonar beacon ripple */}
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border animate-ping pointer-events-none opacity-40"
+                  style={{ borderColor: statusColor }}
+                />
 
+                {/* Cybernetic Telemetry Laser Conduit & Data Stream */}
                 <svg
                   className="absolute overflow-visible pointer-events-none"
                   style={{ left: 0, top: 0, width: 1, height: 1 }}
                 >
+                  <defs>
+                    <filter id={`laser-glow-${sys.id}`} x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={statusColor} floodOpacity={0.6} />
+                    </filter>
+                  </defs>
+
+                  {/* Base Conduit Path */}
                   <path
                     d={`M 0 0 L ${sys.line.elbowX} ${sys.line.elbowY} L ${sys.line.endX} ${sys.line.endY}`}
                     fill="none"
                     stroke={strokeColor}
-                    strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1.25}
-                    strokeDasharray={isSelected ? "none" : "3 2"}
+                    strokeWidth={isSelected ? 2.0 : isHovered ? 1.6 : 1.2}
+                    strokeOpacity={isSelected ? 0.95 : isHovered ? 0.85 : 0.4}
                     style={{
-                      filter: isSelected
-                        ? `drop-shadow(0 0 4px ${statusColor})`
-                        : "none",
                       transition: "all 0.3s ease",
                     }}
                   />
+
+                  {/* Streaming Telemetry Energy Packets */}
+                  <path
+                    d={`M 0 0 L ${sys.line.elbowX} ${sys.line.elbowY} L ${sys.line.endX} ${sys.line.endY}`}
+                    fill="none"
+                    stroke={statusColor}
+                    strokeWidth={isSelected ? 2.5 : 1.8}
+                    strokeDasharray={isSelected ? "8 20" : "5 25"}
+                    className="animate-energy-flow"
+                    filter={`url(#laser-glow-${sys.id})`}
+                    style={{
+                      opacity: isSelected ? 1.0 : isHovered ? 0.85 : 0.5,
+                      transition: "all 0.3s ease",
+                    }}
+                  />
+
+                  {/* Chamfered Elbow Joint Node */}
                   <circle
                     cx={sys.line.elbowX}
                     cy={sys.line.elbowY}
-                    r={isSelected ? 2.5 : 2}
-                    fill={strokeColor}
+                    r={isSelected ? 3.0 : 2.0}
+                    fill={statusColor}
+                    stroke="rgba(255,255,255,0.8)"
+                    strokeWidth={0.75}
                   />
+
+                  {/* Card Dock Terminal Pin */}
                   <circle
                     cx={sys.line.endX}
                     cy={sys.line.endY}
-                    r={isSelected ? 3 : 2}
+                    r={isSelected ? 3.5 : 2.5}
                     fill={statusColor}
+                    filter={`drop-shadow(0 0 5px ${statusColor})`}
                   />
+
+                  {/* Coordinate System Identification Tag */}
+                  <text
+                    x={sys.line.elbowX + (sys.line.side === "left" ? -4 : 4)}
+                    y={sys.line.elbowY - 5}
+                    textAnchor={sys.line.side === "left" ? "end" : "start"}
+                    fill={isSelected ? statusColor : "rgba(148, 163, 184, 0.75)"}
+                    fontSize="8.5"
+                    fontFamily="JetBrains Mono, monospace"
+                    fontWeight="600"
+                    letterSpacing="0.05em"
+                  >
+                    {sys.code}
+                  </text>
                 </svg>
 
+                {/* Floating Telemetry Card Container */}
                 <div
                   style={{
                     position: "absolute",
