@@ -25,7 +25,7 @@ const ModelLoader: React.FC = () => (
       <p className="text-xs font-semibold tracking-wider text-sky-300 font-mono">
         INITIALIZING 3D ANATOMY
       </p>
-      <p className="text-[10px] text-slate-400 mt-1">
+      <p className="text-xs text-slate-400 mt-1">
         Loading 201 Bones, 467 Muscles & 437 Brain Structures...
       </p>
     </div>

@@ -37,16 +37,11 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const breathingAssemblyRef = useRef<THREE.Group>(null);
-  const holoScannerRef = useRef<THREE.Group>(null);
   const brainPulseRef = useRef<THREE.Group>(null);
   const brainRingRef = useRef<THREE.Mesh>(null);
   const eyeGlobeRef = useRef<THREE.Group>(null);
   const eyeReticleRef = useRef<THREE.Group>(null);
   const opticNerveRef = useRef<THREE.Group>(null);
-
-  // Day-based diagnostic transition sweep & recalibration
-  const prevTargetHealth = useRef<number>(100);
-  const transitionWave = useRef<number>(1.0);
 
   // Smooth real-time animated health metrics for interval changes
   const animatedHealth = useRef<{
@@ -541,11 +536,15 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const time = state.clock.getElapsedTime();
 
     // Damped microgravity weightless drift (steadies when zoomed into specific system)
-    if (!disableFloat && groupRef.current) {
-      const floatDamp = selectedSystem ? 0.2 : 1.0;
-      groupRef.current.position.y = Math.sin(time * 0.75) * 0.007 * floatDamp;
-      groupRef.current.rotation.y = Math.sin(time * 0.32) * 0.005 * floatDamp;
-      groupRef.current.rotation.z = Math.cos(time * 0.45) * 0.0025 * floatDamp;
+    if (groupRef.current) {
+      if (disableFloat || selectedSystem) {
+        groupRef.current.position.set(0, 0, 0);
+        groupRef.current.rotation.set(0, 0, 0);
+      } else {
+        groupRef.current.position.y = Math.sin(time * 0.75) * 0.007;
+        groupRef.current.rotation.y = Math.sin(time * 0.32) * 0.005;
+        groupRef.current.rotation.z = Math.cos(time * 0.45) * 0.0025;
+      }
     }
 
     // Subtle organic thoracic respiratory cycle (~15 breaths per minute)
@@ -558,32 +557,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
     const targetMuscle = healthValues ? healthValues.muscle : 100;
     const targetBrain = healthValues ? healthValues.brain : 100;
     const targetEye = healthValues ? healthValues.eye : 100;
-
-    // Day change transition detection: trigger upward diagnostic laser scan wave
-    const currentSum = targetBone + targetMuscle + targetBrain + targetEye;
-    if (Math.abs(currentSum - prevTargetHealth.current) > 0.05) {
-      prevTargetHealth.current = currentSum;
-      transitionWave.current = 0.0;
-    }
-
-    if (transitionWave.current < 1.0) {
-      transitionWave.current = Math.min(1.0, transitionWave.current + delta * 2.2);
-    }
-
-    // Holographic bio-telemetry vertical scanner beam
-    if (holoScannerRef.current) {
-      if (transitionWave.current < 1.0) {
-        // Diagnostic recalibration sweep on day change
-        const scanY = -0.92 + transitionWave.current * 1.84;
-        holoScannerRef.current.position.y = scanY;
-        holoScannerRef.current.rotation.y = time * 2.0;
-      } else {
-        // Continuous ambient space scan
-        const scanY = Math.sin(time * 0.85) * 0.88;
-        holoScannerRef.current.position.y = scanY;
-        holoScannerRef.current.rotation.y = time * 0.25;
-      }
-    }
 
     // Selection and hover states driving focused anatomical highlights
     const isBonesSelected = selectedSystem === "bones";
@@ -888,9 +861,6 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
               <primitive
                 object={skeletonScene}
                 position={[0, 0, 0]}
-                onClick={handleClick("bones")}
-                onPointerOver={handlePointerOver("bones")}
-                onPointerOut={handlePointerOut()}
               />
             )}
 
@@ -898,50 +868,10 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
               <primitive
                 object={anatomyScene}
                 position={[0, 0, 0]}
-                onClick={handleClick("muscles")}
-                onPointerOver={handlePointerOver("muscles")}
-                onPointerOut={handlePointerOut()}
               />
             )}
           </group>
         </group>
-      </group>
-
-      {/* Holographic Bio-Scanning Wave & Emitter Slice */}
-      <group ref={holoScannerRef} position={[0, 0, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.75, 0.38]} />
-          <meshBasicMaterial
-            color="#22d3ee"
-            transparent
-            opacity={0.08}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.31, 0.316, 64]} />
-          <meshBasicMaterial
-            color="#38bdf8"
-            transparent
-            opacity={0.55}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.15, 0.154, 48]} />
-          <meshBasicMaterial
-            color="#06b6d4"
-            transparent
-            opacity={0.3}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
       </group>
 
       {/* Anatomical Central Nervous System (Brain Vault: Real 3D Cerebrum, Cerebellum, Brainstem & Vasculature) */}
@@ -1069,6 +999,123 @@ export const EcorcheModel: React.FC<EcorcheModelProps> = ({
           </group>
         </group>
       )}
+
+      {/* 5. CARDIOVASCULAR SYSTEM ANATOMICAL TARGET (Cardiac Silhouette & Ventricular Conduits) */}
+      <group
+        position={[0.035, 0.44, 0.04]}
+        onClick={handleClick("heart")}
+        onPointerOver={handlePointerOver("heart")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 6. BLOOD & HEMATOLOGIC SYSTEM ANATOMICAL TARGET (Brachial Vascular Conduits & CBC Sampling Site) */}
+      <group
+        position={[-0.18, 0.28, 0.04]}
+        onClick={handleClick("blood")}
+        onPointerOver={handlePointerOver("blood")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 7. IMMUNE SYSTEM ANATOMICAL TARGET (Thymic Lymphoid Center & Cytokine Surveillance Plexus) */}
+      <group
+        position={[-0.04, 0.42, 0.03]}
+        onClick={handleClick("immune_system")}
+        onPointerOver={handlePointerOver("immune_system")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 8. DIGESTIVE SYSTEM ANATOMICAL TARGET (Abdominal Gut Microbiome & Metabolome Node) */}
+      <group
+        position={[0.0, 0.22, 0.04]}
+        onClick={handleClick("digestive_system")}
+        onPointerOver={handlePointerOver("digestive_system")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.08, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 9. SKIN & SURFACE MICROBIOME ANATOMICAL TARGET (Deltoid Biopsy Site & Cutaneous Swab Marker) */}
+      <group
+        position={[0.24, 0.52, 0.02]}
+        onClick={handleClick("skin")}
+        onPointerOver={handlePointerOver("skin")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 10. WHOLE-BODY SYSTEMIC & RADIATION EXPOSURE (Systemic Target) */}
+      <group
+        position={[0, 0.05, 0]}
+        onClick={handleClick("whole_body")}
+        onPointerOver={handlePointerOver("whole_body")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <cylinderGeometry args={[0.22, 0.22, 1.6, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* 11. SPACECRAFT ENVIRONMENT ANATOMICAL TARGET (Cabin Environmental Sensor Station) */}
+      <group
+        position={[0.42, -0.68, 0.22]}
+        onClick={handleClick("spacecraft_environment")}
+        onPointerOver={handlePointerOver("spacecraft_environment")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.09, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* SKELETAL SYSTEM ANATOMICAL TARGET (Trochanter & Pelvis DXA site) */}
+      <group
+        position={[-0.095, -0.19, -0.03]}
+        onClick={handleClick("bones")}
+        onPointerOver={handlePointerOver("bones")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.08, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
+
+      {/* MUSCULAR SYSTEM ANATOMICAL TARGET (Quadriceps & Postural disuse atrophy site) */}
+      <group
+        position={[0.095, -0.1, 0.03]}
+        onClick={handleClick("muscles")}
+        onPointerOver={handlePointerOver("muscles")}
+        onPointerOut={handlePointerOut()}
+      >
+        <mesh visible={false}>
+          <sphereGeometry args={[0.08, 16, 16]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      </group>
     </group>
   );
 };
