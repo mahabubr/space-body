@@ -194,15 +194,6 @@ SpaceBody includes a runtime verification utility (`validateNASAHealthDataset()`
 
 ---
 
-## 👥 The Team
-
-Created with passion for the **NASA International Space Apps Challenge 2026**.
-
-- **Mahabubur Rahman** — *Lead Developer & 3D WebGL Graphics Architect*
-- **Research & Domain Curation** — *NASA Biomedical Literature & OSDR Omics Integration*
-
----
-
 ## 📄 License
 
 This project is open-source under the [MIT License](LICENSE). Scientific data, publications, and mission descriptions belong to **NASA** and their respective authors in accordance with NASA's Open Science and Public Access policies.
